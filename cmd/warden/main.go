@@ -3,9 +3,16 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/webteractive/warden/internal/cli"
 )
 
 func main() {
-	fmt.Fprintln(os.Stderr, "warden: not yet wired up")
-	os.Exit(3)
+	err := cli.Run(os.Args[1:], os.Stdout, os.Stderr)
+	if err != nil {
+		if msg := err.Error(); msg != "" {
+			fmt.Fprintln(os.Stderr, msg)
+		}
+	}
+	os.Exit(cli.ExitCode(err))
 }
