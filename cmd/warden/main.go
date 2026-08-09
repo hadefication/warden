@@ -1,18 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/webteractive/warden/internal/cli"
 )
 
 func main() {
-	err := cli.Run(os.Args[1:], os.Stdout, os.Stderr)
-	if err != nil {
-		if msg := err.Error(); msg != "" {
-			fmt.Fprintln(os.Stderr, msg)
-		}
-	}
-	os.Exit(cli.ExitCode(err))
+	// cli.Run writes any error message to stderr itself, so that error output
+	// is covered by the canary leak test rather than escaping through main.
+	os.Exit(cli.ExitCode(cli.Run(os.Args[1:], os.Stdout, os.Stderr)))
 }

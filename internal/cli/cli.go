@@ -47,12 +47,24 @@ func ExitCode(err error) int {
 
 // Run executes the CLI against args. It is the testable seam: tests drive it
 // with in-memory writers rather than spawning a process.
+//
+// Run also writes the error message to errw rather than leaving that to main.
+// Error text is output like any other, and it must be covered by the canary
+// leak test — which only sees what Run writes. Printing from main instead would
+// leave every failure path untested.
 func Run(args []string, out, errw io.Writer) error {
 	root := newRootCmd(out, errw)
 	root.SetArgs(args)
 	root.SetOut(out)
 	root.SetErr(errw)
-	return root.Execute()
+
+	err := root.Execute()
+	if err != nil {
+		if msg := err.Error(); msg != "" {
+			fmt.Fprintln(errw, msg)
+		}
+	}
+	return err
 }
 
 func newRootCmd(out, errw io.Writer) *cobra.Command {
