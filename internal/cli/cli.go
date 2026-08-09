@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/webteractive/warden/internal/mcpserver"
 	"github.com/webteractive/warden/internal/query"
 )
 
@@ -80,6 +81,18 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 
 	addReadCommands(root, out)
 	addWriteCommands(root, out)
+
+	root.AddCommand(&cobra.Command{
+		Use:   "mcp",
+		Short: "run the MCP server on stdio",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := mcpserver.Serve(cmd.Context(), SetPrompter); err != nil {
+				return &ExitError{Code: CodeError, Msg: fmt.Sprintf("warden: %v", err)}
+			}
+			return nil
+		},
+	})
 	return root
 }
 
