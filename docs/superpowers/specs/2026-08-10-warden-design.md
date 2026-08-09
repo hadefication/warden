@@ -72,13 +72,17 @@ characters.
 
 Resolved in strict precedence order. First match wins.
 
-1. **`.env.schema` override** — optional per-project file declaring `secret = true|false` for
-   specific keys. Written only where the heuristics are wrong; most projects will never have one.
-2. **Value shape.** Available precisely because Warden may read what it will not emit. A value
-   matching `sk_live_`, `sk_test_`, `ghp_`, `github_pat_`, `AKIA`, `xoxb-`, `-----BEGIN`, or a
-   URL carrying a `user:pass@` userinfo component is secret regardless of its key name. This
-   catches `APP_URL=https://admin:hunter2@staging.example.com`, which every name-based rule
-   would wave through.
+1. **Value shape, and it is unwaivable.** Available precisely because Warden may read what it
+   will not emit. A value matching `sk_live_`, `sk_test_`, `ghp_`, `github_pat_`, `AKIA`,
+   `xoxb-`, `-----BEGIN`, or a URL carrying a `user:pass@` userinfo component is secret
+   regardless of its key name. This catches `APP_URL=https://admin:hunter2@staging.example.com`,
+   which every name-based rule would wave through.
+
+   It deliberately outranks the schema below it. An override exists to fix a heuristic miss, not
+   to unmask a live credential, so no `.env.schema` entry can make a demonstrable API key
+   readable.
+2. **`.env.schema` override** — optional per-project file declaring `KEY=public|secret`. Written
+   only where the heuristics are wrong; most projects will never have one.
 3. **Public allowlist.** `APP_NAME`, `APP_ENV`, `APP_DEBUG`, `APP_URL`, `APP_LOCALE`,
    `APP_TIMEZONE`, `LOG_CHANNEL`, `LOG_LEVEL`, `LOG_STACK`, `DB_CONNECTION`, `DB_HOST`,
    `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `CACHE_STORE`, `CACHE_PREFIX`, `QUEUE_CONNECTION`,

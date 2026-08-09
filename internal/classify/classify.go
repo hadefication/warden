@@ -38,18 +38,3 @@ func Classify(key string, value secret.Secret, sch *Schema) Result {
 	}
 	return Result{Class: Secret, Rule: "default:fail-closed"}
 }
-
-// Schema holds per-key overrides loaded from a project's .env.schema.
-// Task 6 gives it a loader; until then only the nil case is exercised.
-type Schema struct {
-	entries map[string]Class
-}
-
-// Lookup returns an explicit override for key, if the schema declares one.
-func (s *Schema) Lookup(key string) (Class, bool) {
-	if s == nil {
-		return Public, false
-	}
-	c, ok := s.entries[key]
-	return c, ok
-}
