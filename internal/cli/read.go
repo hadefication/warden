@@ -177,6 +177,3 @@ func addReadCommands(root *cobra.Command, out io.Writer) {
 		},
 	})
 }
-
-// Replaced in Task 12 by internal/cli/set.go.
-func addWriteCommands(*cobra.Command, io.Writer) {}
