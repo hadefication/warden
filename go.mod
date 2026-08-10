@@ -1,4 +1,4 @@
-module github.com/webteractive/warden
+module github.com/hadefication/warden
 
 go 1.26.4
 

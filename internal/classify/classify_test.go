@@ -3,7 +3,7 @@ package classify
 import (
 	"testing"
 
-	"github.com/webteractive/warden/internal/secret"
+	"github.com/hadefication/warden/internal/secret"
 )
 
 func TestClassifyPrecedenceAndRules(t *testing.T) {

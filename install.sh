@@ -13,7 +13,7 @@ err() { printf 'warden-install: %s\n' "$1" >&2; exit 1; }
 command -v go >/dev/null 2>&1 || err "go is required"
 
 mkdir -p "$INSTALL_DIR"
-go build -ldflags "-X github.com/webteractive/warden/internal/mcpserver.version=$VERSION" \
+go build -ldflags "-X github.com/hadefication/warden/internal/mcpserver.version=$VERSION" \
 	-o "$INSTALL_DIR/warden" ./cmd/warden
 
 printf 'warden %s installed to %s\n' "$VERSION" "$INSTALL_DIR/warden"

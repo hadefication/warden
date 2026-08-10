@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/webteractive/warden/internal/envfile"
+	"github.com/hadefication/warden/internal/envfile"
 )
 
 // OpenSecrets opens $HOME/.secrets.

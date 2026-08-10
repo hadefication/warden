@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/webteractive/warden/internal/envfile"
+	"github.com/hadefication/warden/internal/envfile"
 )
 
 // SchemaFilename is the per-project override file.

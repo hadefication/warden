@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/webteractive/warden/internal/cli"
+	"github.com/hadefication/warden/internal/cli"
 )
 
 func main() {

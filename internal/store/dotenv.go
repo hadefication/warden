@@ -4,8 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/webteractive/warden/internal/envfile"
-	"github.com/webteractive/warden/internal/secret"
+	"github.com/hadefication/warden/internal/envfile"
+	"github.com/hadefication/warden/internal/secret"
 )
 
 type fileStore struct {

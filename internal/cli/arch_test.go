@@ -11,12 +11,12 @@ import (
 // raw value without a classification and every other guarantee here is void.
 // This test makes that structural rather than customary.
 func TestSurfacePackagesDoNotImportStoreDirectly(t *testing.T) {
-	const forbidden = "github.com/webteractive/warden/internal/store"
+	const forbidden = "github.com/hadefication/warden/internal/store"
 
 	for _, pkg := range []string{
-		"github.com/webteractive/warden/internal/cli",
-		"github.com/webteractive/warden/internal/mcpserver",
-		"github.com/webteractive/warden/cmd/warden",
+		"github.com/hadefication/warden/internal/cli",
+		"github.com/hadefication/warden/internal/mcpserver",
+		"github.com/hadefication/warden/cmd/warden",
 	} {
 		out, err := exec.Command("go", "list", "-f", "{{join .Imports \"\\n\"}}", pkg).Output()
 		if err != nil {

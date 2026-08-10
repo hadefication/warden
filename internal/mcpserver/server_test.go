@@ -10,7 +10,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/webteractive/warden/internal/prompt"
+	"github.com/hadefication/warden/internal/prompt"
 )
 
 func project(t *testing.T, files map[string]string) string {

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/webteractive/warden/internal/secret"
+	"github.com/hadefication/warden/internal/secret"
 )
 
 func writeSchema(t *testing.T, body string) string {

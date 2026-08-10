@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/webteractive/warden/internal/prompt"
+	"github.com/hadefication/warden/internal/prompt"
 )
 
 func readEnv(t *testing.T, dir string) string {

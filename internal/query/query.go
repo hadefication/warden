@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/webteractive/warden/internal/classify"
-	"github.com/webteractive/warden/internal/store"
+	"github.com/hadefication/warden/internal/classify"
+	"github.com/hadefication/warden/internal/store"
 )
 
 var (

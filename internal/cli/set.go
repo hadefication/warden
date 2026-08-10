@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/webteractive/warden/internal/prompt"
-	"github.com/webteractive/warden/internal/write"
+	"github.com/hadefication/warden/internal/prompt"
+	"github.com/hadefication/warden/internal/write"
 )
 
 // SetPrompter is the channel used to collect secret values. Tests replace it

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/webteractive/warden/internal/prompt"
+	"github.com/hadefication/warden/internal/prompt"
 )
 
 // Every value in the fixture is a unique marker. Secret markers must never
