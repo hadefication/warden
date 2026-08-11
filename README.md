@@ -13,11 +13,52 @@ goes from your keyboard to the file without passing through the agent.
 
 ## Install
 
+### No Go required (recommended)
+
+Warden compiles to a single statically linked binary with no runtime dependencies,
+so the installer just drops one file into place:
+
 ```sh
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/hadefication/warden/main/install.sh | sh
 ```
 
-Builds from source into `~/.local/bin/warden`.
+This downloads the latest release for your OS and architecture, verifies its
+SHA-256 checksum, and installs to `~/.local/bin/warden`. Prebuilt binaries are
+published for **macOS and Linux** on **amd64 and arm64**.
+
+Install somewhere else with `WARDEN_INSTALL_DIR`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/hadefication/warden/main/install.sh \
+  | WARDEN_INSTALL_DIR=/usr/local/bin sh
+```
+
+> The dialog that collects secret values uses macOS `osascript`. On Linux, Warden
+> falls back to a TTY prompt with echo disabled; with no TTY it refuses and prints
+> the command for you to run yourself.
+
+### From source
+
+Requires Go 1.26+. From a clone:
+
+```sh
+./install.sh --source
+```
+
+Or without cloning:
+
+```sh
+go install github.com/hadefication/warden/cmd/warden@latest
+```
+
+### Verifying the install
+
+```sh
+warden --help
+```
+
+If the command isn't found, `~/.local/bin` isn't on your `PATH` — the installer
+says so and prints the line to add to your shell profile.
 
 ## Usage
 

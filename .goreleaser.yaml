@@ -1,0 +1,47 @@
+# goreleaser v2 config — builds prebuilt warden binaries on a version tag.
+# Validate locally with: goreleaser check
+version: 2
+
+project_name: warden
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: warden
+    main: ./cmd/warden
+    binary: warden
+    env:
+      # Static binaries with no libc dependency — this is what lets the
+      # installer drop a single file onto a machine that has no Go toolchain.
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/hadefication/warden/internal/mcpserver.version={{ .Version }}
+
+archives:
+  - id: warden
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  draft: false
+  prerelease: auto
