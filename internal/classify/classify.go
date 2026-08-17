@@ -18,7 +18,7 @@ import (
 //
 // sch may be nil when the project has no override file.
 func Classify(key string, value secret.Secret, sch *Schema) Result {
-	if rule, ok := matchShape(value.Expose()); ok {
+	if rule, ok := ShapeRule(value); ok {
 		return Result{Class: Secret, Rule: rule}
 	}
 	if sch != nil {

@@ -79,6 +79,16 @@ func invocations(dir string) map[string][][]string {
 			{"classify", "APP_URL", "--project", dir},
 			{"classify", "ABSENT", "--project", dir},
 			{"classify", "DB_PASSWORD", "--project", dir, "--json"},
+			// --set exercises the write path. The first two are refused on value
+			// shape and must not quote the credential they are protecting; the
+			// third succeeds, which makes the key readable but must still not
+			// print the value as part of confirming that.
+			{"classify", "STRIPE_SECRET", "--set", "public", "--project", dir},
+			{"classify", "APP_URL", "--set", "public", "--project", dir},
+			{"classify", "DB_PASSWORD", "--set", "public", "--project", dir},
+			{"classify", "DB_PASSWORD", "--set", "public", "--project", dir, "--json"},
+			{"classify", "APP_NAME", "--set", "secret", "--project", dir},
+			{"classify", "GH_TOKEN", "--set", "publik", "--project", dir},
 		},
 		"doctor": {
 			{"doctor", "--project", dir},
@@ -149,6 +159,7 @@ func TestGlobalScopeCommandsDoNotLeak(t *testing.T) {
 		{"doctor", "--global"},
 		{"missing", "--global"},
 		{"set", "GH_TOKEN", canaryToken, "--global"},
+		{"classify", "GH_TOKEN", "--set", "public", "--global"},
 	} {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
 			var out, errw bytes.Buffer

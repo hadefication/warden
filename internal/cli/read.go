@@ -66,11 +66,23 @@ func addReadCommands(root *cobra.Command, out io.Writer) {
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	classifyCmd := &cobra.Command{
 		Use:   "classify <KEY>",
 		Short: "explain why a key is treated as secret or public",
-		Args:  cobra.ExactArgs(1),
+		Long: "Explain a key's classification, or record an override for it.\n\n" +
+			"Without --set this only reports: warden classify APP_URL\n" +
+			"With --set it records the class in .env.schema, after you authorise it\n" +
+			"in a prompt this process owns. Marking a key public means warden will\n" +
+			"print its value, so that direction asks you to retype the key name.\n" +
+			"Value shape still wins: a recognised credential cannot be made public.",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Changed, not a non-empty value: --set="" is a bad argument to an
+			// explicit request, and must not quietly become a plain read.
+			if cmd.Flags().Changed("set") {
+				class, _ := cmd.Flags().GetString("set")
+				return runReclassify(cmd, out, args[0], class)
+			}
 			q, err := openQuery(cmd)
 			if err != nil {
 				return err
@@ -84,7 +96,10 @@ func addReadCommands(root *cobra.Command, out io.Writer) {
 			fmt.Fprintf(out, "%s\t%s\t(%s)\n", args[0], r.Class, r.Rule)
 			return nil
 		},
-	})
+	}
+	classifyCmd.Flags().String("set", "",
+		`record an explicit class in .env.schema: "public" or "secret" (asks for confirmation)`)
+	root.AddCommand(classifyCmd)
 
 	root.AddCommand(&cobra.Command{
 		Use:   "get <KEY>",

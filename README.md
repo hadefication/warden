@@ -71,6 +71,7 @@ warden classify APP_URL         # explains why a key is secret or public
 warden doctor                   # permissions, empty values, drift
 warden set APP_NAME Warden      # public keys, written directly
 warden set --secret DB_PASSWORD # prompts you; the caller never sees the value
+warden classify FOO --set public  # records an override, after you authorise it
 warden mcp                      # MCP server on stdio
 ```
 
@@ -105,12 +106,41 @@ Run `warden classify <KEY>` to see which rule fired.
 
 ### Overriding a classification
 
-Create `.env.schema` beside your `.env`:
+Either edit `.env.schema` beside your `.env` by hand:
 
 ```
 MY_PUBLIC_KEY=public
 INTERNAL_MODE=secret
 ```
+
+…or let warden write it, which is the same file with a confirmation attached:
+
+```sh
+warden classify MY_PUBLIC_KEY --set public
+warden classify INTERNAL_MODE --set secret
+```
+
+The two directions are not equally dangerous, so they are not equally easy.
+Marking a key **public** is the only operation that turns a value warden refuses
+to print into one it will emit, so it opens a prompt this process owns and asks
+you to **retype the key name** — a button reachable by muscle memory is too weak
+a gate for that. Marking a key **secret** only tightens, so it takes a plain
+confirmation. Declining, mistyping, and letting the dialog time out all write
+nothing and exit 3.
+
+Two refusals land before you are asked anything:
+
+- **`--global` is refused.** `~/.secrets` holds secrets by definition, so an
+  override there would only serve to unmask one.
+- **A credential-shaped value cannot be made public.** Shape outranks the schema,
+  so the entry would be inert — warden refuses rather than writing a line that
+  silently does nothing.
+
+A key that is secret only by *name* is fair game: correcting `FOO_KEY` or
+`SESSION_SECRET_TIMEOUT` is exactly what this is for.
+
+`--set` is **CLI-only and deliberately absent from the MCP server**, so an agent
+can ask what a key's class is but never change it.
 
 ## How the guarantee is enforced
 

@@ -32,17 +32,32 @@ var (
 // returns "" for both, so the script emits this marker when it gives up.
 const timeoutSentinel = "__WARDEN_TIMED_OUT__"
 
-// Prompter asks the user for a value.
+// Prompter asks the user for a value, or for authorisation.
 type Prompter interface {
 	// AskSecret prompts for key, showing path so the user can see which file
 	// they are authorising a write to.
 	AskSecret(key, path string) (secret.Secret, error)
+
+	// Confirm asks the user to authorise recording key's class as class
+	// ("public" or "secret") in path, and returns nil only if they did.
+	//
+	// When retypeKey is set, approval requires typing key exactly — reserved for
+	// the direction that loosens access, where a single default button reachable
+	// by muscle memory is too weak a gate. Declining, mistyping, and timing out
+	// are all ErrCancelled: the caller learns "no", never why.
+	Confirm(class, key, path string, retypeKey bool) error
 }
 
 // Fake is a test double.
 type Fake struct {
 	Value string
 	Err   error
+	// ConfirmErr is what Confirm returns; nil approves.
+	ConfirmErr error
+	// OnConfirm, when set, is called with each Confirm's arguments. Tests use it
+	// to prove a refusal happened before the user was asked, and to check which
+	// ceremony a given direction demanded.
+	OnConfirm func(class, key, path string, retypeKey bool)
 }
 
 func (f Fake) AskSecret(string, string) (secret.Secret, error) {

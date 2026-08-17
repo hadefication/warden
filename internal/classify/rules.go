@@ -3,6 +3,8 @@ package classify
 import (
 	"regexp"
 	"strings"
+
+	"github.com/hadefication/warden/internal/secret"
 )
 
 // publicKeys are framework keys that are safe to read and set. Everything here
@@ -58,6 +60,14 @@ var shapePrefixes = []struct{ prefix, rule string }{
 // userinfoURL matches a URL carrying credentials in its authority component,
 // e.g. https://admin:hunter2@host. Those are secrets no matter the key name.
 var userinfoURL = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+.\-]*://[^/@\s]+:[^/@\s]+@`)
+
+// ShapeRule reports the rule name for a value whose format identifies it as a
+// credential. It is exported so a caller can ask about shape on its own — this
+// is the one classification input an override cannot waive, so a caller about to
+// record an override needs to know whether the answer would be inert.
+func ShapeRule(value secret.Secret) (string, bool) {
+	return matchShape(value.Expose())
+}
 
 // matchShape reports the rule name for a value that looks like a credential.
 func matchShape(value string) (string, bool) {
