@@ -34,7 +34,11 @@ checksum:
   name_template: "checksums.txt"
 
 changelog:
-  use: github
+  # Built from local git history, not GitHub's compare API. `use: github` failed
+  # the v0.1.1 release with a 404 on /compare/v0.1.0...v0.1.1 — v0.1.0 was the
+  # first tag, so that call had never run before and the config looked fine.
+  # release.yml checks out with fetch-depth: 0, so the full history is local.
+  use: git
   sort: asc
   filters:
     exclude:
