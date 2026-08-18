@@ -126,6 +126,13 @@ be recoverable, so both take the plain `ConfirmAction` ceremony. Never the retyp
 reserved for disclosure, and the vault has no disclosure path at all. Teaching the retype to mean
 "confirm" is the failure mode `unset` already avoided.
 
+`internal/prompt` gains a sentence and a run-it-yourself command per action. Its `actionSentence`
+currently defaults to *"Remove %s. Its value will be gone from this file"* for anything it does not
+recognise, so `push`, `replace` and `edit` would each show a dialog describing a removal — the user
+would be authorising something other than what happens, which is worse than not asking. The push
+sentence in particular has to name the destination, since that is the entire risk being
+authorised.
+
 ### Storage format
 
 `~/.warden/vault`, mode `0600`: a plaintext header plus one sealed blob.
@@ -294,8 +301,9 @@ The four existing mechanisms grow rather than get bypassed:
   the forbidden-import list for `internal/cli`, `internal/mcpserver`, and `cmd/warden`. The vault
   holds values; the keyring holds the key that unseals them. A surface package needs neither.
 - **`Expose()` budget** — rises from 6 to 10, each new site named in the comment: sealing entry
-  values, reading and writing the master key, and handing a value to `store.Set` on push. The
-  number goes up because the safe zone got bigger, and should be reviewed as such.
+  values, deriving the passphrase key, decoding the master key, each keyring backend's write, and
+  handing a value to `store.Set` on push. The number goes up because the safe zone got bigger, and
+  should be reviewed as such.
 
 **The first test to write**, because this design contains a trap: `secret.Secret.MarshalJSON`
 renders `<redacted>`. A vault that serializes entries naively writes the literal string
