@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -51,6 +52,37 @@ type setArgs struct {
 	Value string `json:"value" jsonschema:"the value to write; rejected if the key or the value is sensitive"`
 }
 
+// The vault is user-global, so none of these carry a project or a scope — and
+// none of them carries a `yes`. A push from an agent always confirms on the
+// user's screen; that is not negotiable through an argument.
+type vaultNameArgs struct {
+	Name string `json:"name" jsonschema:"the vault entry's name"`
+}
+
+type vaultRequestArgs struct {
+	Name string `json:"name" jsonschema:"the vault entry's name, e.g. stripe/live"`
+	Key  string `json:"key,omitempty" jsonschema:"the env key it lands as; may be omitted when the name is already a valid env key"`
+	TTL  string `json:"ttl,omitempty" jsonschema:"delete the entry after this long, e.g. 8h or 7d; maximum 30d; omit for permanent"`
+}
+
+type vaultPushArgs struct {
+	Name    string `json:"name" jsonschema:"the vault entry to push"`
+	Project string `json:"project,omitempty" jsonschema:"destination directory; defaults to the server's working directory"`
+	Global  bool   `json:"global,omitempty" jsonschema:"push into ~/.secrets instead of a project .env"`
+	As      string `json:"as,omitempty" jsonschema:"write it under a different env key"`
+	Force   bool   `json:"force,omitempty" jsonschema:"overwrite a destination key that is already set"`
+}
+
+func homeDir() string {
+	home, _ := os.UserHomeDir()
+	return home
+}
+
+// promptFor returns the prompter New was given. The vault's passphrase mode and
+// every confirmation route through it, so it must be the same channel the env
+// tools use rather than a fresh default.
+var promptFor = func() prompt.Prompter { return prompt.Default() }
+
 func textResult(s string) *mcp.CallToolResult {
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: s}}}
 }
@@ -71,11 +103,16 @@ func ToolNames() []string {
 	return []string{
 		"env_has", "env_list", "env_missing", "env_get", "env_doctor",
 		"env_set", "env_request_secret", "env_unset", "env_clear", "env_classify", "env_refs",
+		// The vault. There is deliberately no vault_set (no entry is public),
+		// no vault_edit and no vault_init (both CLI-only) — internal/cli's
+		// parity table records each omission with its reason.
+		"vault_list", "vault_has", "vault_request_secret", "vault_delete", "vault_push",
 	}
 }
 
 // New builds the MCP server. p is the channel used to collect secret values.
 func New(p prompt.Prompter) *mcp.Server {
+	promptFor = func() prompt.Prompter { return p }
 	s := mcp.NewServer(&mcp.Implementation{Name: "warden", Version: version}, nil)
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -278,6 +315,123 @@ func New(p prompt.Prompter) *mcp.Server {
 			payload.Unused = append(payload.Unused, unused{r.Key, r.Class.String()})
 		}
 		return nil, payload, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "vault_list",
+		Description: "List the user's vault entries: each entry's name, the env key it lands as, " +
+			"when it was stored, and when it expires. Values are never included, and there is no " +
+			"tool that reads one — vault_push is how a value reaches a project.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+		q, err := query.OpenVault(homeDir(), promptFor())
+		if err != nil {
+			return errResult("warden: %v", err), nil, nil
+		}
+		type row struct {
+			Name      string `json:"name"`
+			Key       string `json:"key"`
+			Created   string `json:"created"`
+			Expires   string `json:"expires,omitempty"`
+			Permanent bool   `json:"permanent"`
+		}
+		rows := []row{}
+		for _, r := range q.List() {
+			out := row{Name: r.Name, Key: r.Key, Created: r.Created.UTC().Format(time.RFC3339),
+				Permanent: r.Permanent}
+			if !r.Permanent {
+				out.Expires = r.Expires.UTC().Format(time.RFC3339)
+			}
+			rows = append(rows, out)
+		}
+		return nil, rows, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "vault_has",
+		Description: "Report whether the vault holds a live entry under this name. An expired entry " +
+			"reads as absent. Never reveals a value.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, a vaultNameArgs) (*mcp.CallToolResult, any, error) {
+		q, err := query.OpenVault(homeDir(), promptFor())
+		if err != nil {
+			return errResult("warden: %v", err), nil, nil
+		}
+		return textResult(fmt.Sprintf("%t", q.Has(a.Name))), nil, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "vault_request_secret",
+		Description: "Ask the user to type a value into a prompt and store it in the vault under a " +
+			"name. The value never passes through this tool — you supply the name, the key it lands " +
+			"as, and optionally a ttl. There is no vault_set: no vault entry is public.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, a vaultRequestArgs) (*mcp.CallToolResult, any, error) {
+		key := a.Key
+		if key == "" {
+			if !query.LooksLikeEnvKey(a.Name) {
+				return errResult(
+					"warden: %s is not a usable env key, so key is required", a.Name), nil, nil
+			}
+			key = a.Name
+		}
+		var ttl time.Duration
+		if a.TTL != "" {
+			var err error
+			if ttl, err = query.ParseTTL(a.TTL); err != nil {
+				return errResult("warden: %v", err), nil, nil
+			}
+		}
+		w, err := write.OpenVault(homeDir(), promptFor())
+		if err != nil {
+			return errResult("warden: %v", err), nil, nil
+		}
+		if err := w.Set(a.Name, key, ttl); err != nil {
+			if errors.Is(err, prompt.ErrCancelled) {
+				return errResult("warden: cancelled — nothing was written"), nil, nil
+			}
+			return errResult("warden: %v", err), nil, nil
+		}
+		return textResult(fmt.Sprintf("stored %s (lands as %s)", a.Name, key)), nil, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "vault_delete",
+		Description: "Remove a vault entry. The user authorises it on their screen first, because " +
+			"the value may not be recoverable from anywhere else.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, a vaultNameArgs) (*mcp.CallToolResult, any, error) {
+		w, err := write.OpenVault(homeDir(), promptFor())
+		if err != nil {
+			return errResult("warden: %v", err), nil, nil
+		}
+		if err := w.Remove(a.Name); err != nil {
+			if errors.Is(err, prompt.ErrCancelled) {
+				return errResult("warden: cancelled — nothing was removed"), nil, nil
+			}
+			return errResult("warden: %v", err), nil, nil
+		}
+		return textResult(fmt.Sprintf("removed %s", a.Name)), nil, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "vault_push",
+		Description: "Write a vault entry's value into a project's .env (or ~/.secrets). This is the " +
+			"only way a value leaves the vault, and it always asks the user on their screen first — " +
+			"it moves a credential into a file that may well be committed. The value is never " +
+			"returned to you.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, a vaultPushArgs) (*mcp.CallToolResult, any, error) {
+		w, err := write.OpenVault(homeDir(), promptFor())
+		if err != nil {
+			return errResult("warden: %v", err), nil, nil
+		}
+		dest := scopeArgs{Project: a.Project, Global: a.Global}.scope()
+
+		// yes is false, always. There is no argument that can change it.
+		res, err := w.Push(a.Name, dest, a.As, a.Force, false)
+		if err != nil {
+			if errors.Is(err, prompt.ErrCancelled) {
+				return errResult("warden: cancelled — nothing was written"), nil, nil
+			}
+			return errResult("warden: %v", err), nil, nil
+		}
+		return textResult(fmt.Sprintf("pushed %s as %s into %s", a.Name, res.Key, res.Path)), nil, nil
 	})
 
 	return s
