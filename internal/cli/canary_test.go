@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hadefication/warden/internal/keyring"
 	"github.com/hadefication/warden/internal/prompt"
+	"github.com/hadefication/warden/internal/query"
 )
 
 // Every value in the fixture is a unique marker. Secret markers must never
@@ -132,6 +134,45 @@ func invocations(dir string) map[string][][]string {
 			{"hook", "--check", "--settings", "/nonexistent/settings.json"},
 			{"hook", "--install", "--settings", "/nonexistent/settings.json"},
 		},
+		"vault init": {
+			{"vault", "init"},
+			{"vault", "init"}, // second call is refused: a vault already exists
+			{"vault", "init", "--global"},
+		},
+		"vault set": {
+			{"vault", "set", "CANARY_TOKEN"},
+			{"vault", "set", "stripe/live", "--key", "STRIPE_SECRET"},
+			{"vault", "set", "stripe/live", "--key", "STRIPE_SECRET"}, // replace path
+			{"vault", "set", "no/key/given"},
+			{"vault", "set", "CANARY_TOKEN", "--ttl", "8h"},
+			{"vault", "set", "CANARY_TOKEN", "--ttl", "31d"},
+			{"vault", "set", "bad name"},
+		},
+		"vault list": {
+			{"vault", "list"},
+			{"vault", "list", "--json"},
+		},
+		"vault has": {
+			{"vault", "has", "CANARY_TOKEN"},
+			{"vault", "has", "absent"},
+		},
+		"vault edit": {
+			{"vault", "edit", "CANARY_TOKEN", "--key", "OTHER_TOKEN"},
+			{"vault", "edit", "CANARY_TOKEN", "--ttl", "none"},
+			{"vault", "edit", "absent", "--key", "X"},
+			{"vault", "edit", "CANARY_TOKEN"},
+		},
+		"vault rm": {
+			{"vault", "rm", "CANARY_TOKEN"},
+			{"vault", "rm", "absent"},
+		},
+		"vault push": {
+			{"vault", "push", "stripe/live", "--to", "", "--yes"},
+			{"vault", "push", "stripe/live", "--to", "", "--yes"}, // now already set
+			{"vault", "push", "stripe/live", "--to", "", "--yes", "--force"},
+			{"vault", "push", "stripe/live", "--to", "", "--as", "OTHER_KEY", "--yes"},
+			{"vault", "push", "absent", "--to", "", "--yes"},
+		},
 		"mcp": nil, // long-running stdio server; covered by internal/mcpserver tests
 	}
 }
@@ -143,6 +184,12 @@ func TestNoCommandLeaksASecretValue(t *testing.T) {
 	SetPrompter = prompt.Fake{Value: canaryTyped}
 	t.Cleanup(func() { SetPrompter = prev })
 
+	// The vault lives under $HOME, and no test may touch the developer's real
+	// one. Redirect it and install a fake keyring for the whole suite.
+	t.Setenv("HOME", t.TempDir())
+	query.VaultKeyring = &keyring.Fake{}
+	t.Cleanup(func() { query.VaultKeyring = nil })
+
 	for name, argsets := range invocations("") {
 		for _, args := range argsets {
 			t.Run(name+"/"+strings.Join(args, "_"), func(t *testing.T) {
@@ -150,7 +197,7 @@ func TestNoCommandLeaksASecretValue(t *testing.T) {
 				dir := canaryProject(t)
 				args = append([]string(nil), args...)
 				for i, a := range args {
-					if a == "--project" && i+1 < len(args) && args[i+1] == "" {
+					if (a == "--project" || a == "--to") && i+1 < len(args) && args[i+1] == "" {
 						args[i+1] = dir
 					}
 				}
@@ -219,14 +266,11 @@ func TestGlobalScopeCommandsDoNotLeak(t *testing.T) {
 func TestEveryRegisteredCommandIsCoveredByTheCanaryTable(t *testing.T) {
 	covered := invocations("")
 	root := newRootCmd(&bytes.Buffer{}, &bytes.Buffer{})
-	for _, c := range root.Commands() {
-		if c.Name() == "help" || c.Name() == "completion" {
-			continue
-		}
-		if _, ok := covered[c.Name()]; !ok {
+	for _, name := range commandNames(root) {
+		if _, ok := covered[name]; !ok {
 			t.Errorf("command %q has no entry in the canary table — add one before shipping it. "+
 				"If it genuinely cannot be exercised here, map it to nil with a comment saying why.",
-				c.Name())
+				name)
 		}
 	}
 }

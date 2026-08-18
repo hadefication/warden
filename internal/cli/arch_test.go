@@ -7,11 +7,19 @@ import (
 )
 
 // The safety property depends on internal/query being the only way out of
-// internal/store. If a surface package imports store directly, it can reach a
-// raw value without a classification and every other guarantee here is void.
-// This test makes that structural rather than customary.
-func TestSurfacePackagesDoNotImportStoreDirectly(t *testing.T) {
-	const forbidden = "github.com/hadefication/warden/internal/store"
+// internal/store, and internal/write the only way in. The vault adds two more
+// packages a surface must not reach: internal/vault holds values, and
+// internal/keyring holds the key that unseals them. A surface needs neither.
+//
+// This checks .Imports rather than .TestImports deliberately — a test file may
+// import keyring to install a fake, which is how the vault is exercised without
+// touching a real keychain.
+func TestSurfacePackagesDoNotImportTheValueLayersDirectly(t *testing.T) {
+	forbidden := []string{
+		"github.com/hadefication/warden/internal/store",
+		"github.com/hadefication/warden/internal/vault",
+		"github.com/hadefication/warden/internal/keyring",
+	}
 
 	for _, pkg := range []string{
 		"github.com/hadefication/warden/internal/cli",
@@ -23,9 +31,11 @@ func TestSurfacePackagesDoNotImportStoreDirectly(t *testing.T) {
 			t.Fatalf("go list %s: %v", pkg, err)
 		}
 		for _, imp := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-			if imp == forbidden {
-				t.Errorf("%s imports %s directly — it must go through internal/query or internal/write",
-					pkg, forbidden)
+			for _, bad := range forbidden {
+				if imp == bad {
+					t.Errorf("%s imports %s directly — it must go through internal/query or internal/write",
+						pkg, bad)
+				}
 			}
 		}
 	}
@@ -45,8 +55,15 @@ func TestExposeCallSitesStayFew(t *testing.T) {
 		}
 		production = append(production, line)
 	}
-	// classify (shape check), query.Get, write.SetPublic, write.SetSecret.
-	const budget = 6
+	// classify (shape check), query.Get, write.SetPublic/SetSecret,
+	// vault sealDoc (the wire type that defeats Secret redaction),
+	// vault deriveFromPassphrase, vault decodeMasterKey,
+	// keyring Security.Set and SecretTool.Set (stdin, never argv),
+	// write.setFromVault (the value crossing on vault push).
+	//
+	// This counts matching *lines*, not calls: Security.Set exposes twice on one
+	// line because security asks for the value and then a retype.
+	const budget = 10
 	if len(production) > budget {
 		t.Errorf("Expose() is called in %d production sites, budget is %d.\n"+
 			"Each one lets a value escape the safe zone — review these and raise the budget "+

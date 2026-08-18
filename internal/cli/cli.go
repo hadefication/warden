@@ -82,6 +82,7 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 	addReadCommands(root, out)
 	addHookCommand(root, out)
 	addWriteCommands(root, out)
+	addVaultCommands(root, out)
 
 	root.AddCommand(&cobra.Command{
 		Use:   "mcp",

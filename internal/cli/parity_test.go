@@ -4,8 +4,32 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/hadefication/warden/internal/mcpserver"
 )
+
+// commandNames lists every leaf command, descending one level into a family so
+// `vault push` is accounted for rather than hidden behind `vault`.
+func commandNames(root *cobra.Command) []string {
+	var out []string
+	for _, c := range root.Commands() {
+		if c.Name() == "help" || c.Name() == "completion" {
+			continue
+		}
+		if c.HasSubCommands() {
+			for _, sub := range c.Commands() {
+				if sub.Name() == "help" || sub.Name() == "completion" {
+					continue
+				}
+				out = append(out, c.Name()+" "+sub.Name())
+			}
+			continue
+		}
+		out = append(out, c.Name())
+	}
+	return out
+}
 
 // parity records how each CLI command is covered on the MCP surface. An empty
 // string is a deliberate omission and must carry a reason: the design promises
@@ -29,13 +53,26 @@ var parity = map[string]string{
 	// configuration is a privilege-escalation primitive, and an agent asking to
 	// relax its own restrictions is precisely what this hook exists to stop.
 	"hook": "",
+
+	"vault set":  "vault_request_secret", // the value always comes from a prompt; there is no vault_set
+	"vault list": "vault_list",
+	"vault has":  "vault_has",
+	"vault rm":   "vault_delete",
+	"vault push": "vault_push",
+	// Deliberately CLI-only. An agent quietly extending a credential's TTL is
+	// exactly the operation this surface should not offer.
+	"vault edit": "",
+	// Deliberately CLI-only. init chooses how the vault is protected at rest —
+	// the same class of decision as hook editing the harness's own permissions.
+	"vault init": "",
 }
 
 // toolOwners inverts parity, naming which command each tool answers for.
 func toolOwners() map[string]string {
 	owners := map[string]string{
-		// Not a command of its own: set --secret routes here.
-		"env_request_secret": "set --secret",
+		// Not commands of their own: the value always arrives through a prompt.
+		"env_request_secret":   "set --secret",
+		"vault_request_secret": "vault set",
 	}
 	for cmd, tool := range parity {
 		if tool != "" {
@@ -47,14 +84,11 @@ func toolOwners() map[string]string {
 
 func TestEveryCommandIsAccountedForOnTheMCPSurface(t *testing.T) {
 	root := newRootCmd(&bytes.Buffer{}, &bytes.Buffer{})
-	for _, c := range root.Commands() {
-		if c.Name() == "help" || c.Name() == "completion" {
-			continue
-		}
-		if _, ok := parity[c.Name()]; !ok {
+	for _, name := range commandNames(root) {
+		if _, ok := parity[name]; !ok {
 			t.Errorf("command %q has no entry in the parity table — add the MCP tool that covers it, "+
 				"or map it to \"\" with a comment saying why it is deliberately CLI-only",
-				c.Name())
+				name)
 		}
 	}
 }
