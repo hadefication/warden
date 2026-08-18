@@ -59,6 +59,91 @@ func buildConfirmScript(class, key, path string, seconds int, retypeKey bool) st
 		seconds, applescriptString(timeoutSentinel))
 }
 
+// actionSentence renders what the user is being asked to authorise. The wording
+// is deliberately concrete about the consequence: "remove" is not recoverable
+// from warden, and a dialog that only said "modify" would undersell that.
+func actionSentence(action, key string) string {
+	switch action {
+	case "clear":
+		return fmt.Sprintf("Clear the value of %s, leaving the key declared and empty.", key)
+	default:
+		return fmt.Sprintf("Remove %s. Its value will be gone from this file.", key)
+	}
+}
+
+// actionCommand names the command the user can run themselves when there is no
+// channel to ask them through.
+func actionCommand(action, key string) string {
+	if action == "clear" {
+		return "warden clear " + key
+	}
+	return "warden unset " + key
+}
+
+// buildActionScript renders the AppleScript for a destructive-change dialog.
+// Buttons only, with Cancel as the default: a reflexive Return must decline.
+func buildActionScript(action, key, path string, seconds int) string {
+	msg := fmt.Sprintf("%s\n\nThis writes to:\n%s", actionSentence(action, key), path)
+	return fmt.Sprintf(
+		"set r to display dialog %s with title %s buttons {%s, %s} default button %s giving up after %d\n"+
+			"if gave up of r then\n  return %s\nend if\n"+
+			"return button returned of r",
+		applescriptString(msg), applescriptString("warden — "+key),
+		applescriptString("Cancel"), applescriptString(confirmButton), applescriptString("Cancel"),
+		seconds, applescriptString(timeoutSentinel))
+}
+
+// ConfirmAction shows the destructive-change dialog.
+func (o Osascript) ConfirmAction(action, key, path string) error {
+	timeout := o.Timeout
+	if timeout <= 0 {
+		timeout = 60 * time.Second
+	}
+	out, err := exec.Command("osascript", "-e",
+		buildActionScript(action, key, path, int(timeout.Seconds()))).Output()
+	if err != nil {
+		return ErrCancelled
+	}
+	if strings.TrimSpace(string(out)) != confirmButton {
+		return ErrCancelled
+	}
+	return nil
+}
+
+// ConfirmAction asks on the controlling terminal.
+func (TTY) ConfirmAction(action, key, path string) error {
+	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	if err != nil {
+		return ErrUnavailable
+	}
+	defer tty.Close()
+
+	fmt.Fprintf(tty, "warden: %s\n  target: %s\n  proceed? [y/N]: ", actionSentence(action, key), path)
+	line, err := bufio.NewReader(tty).ReadString('\n')
+	if err != nil {
+		return ErrCancelled
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "y", "yes":
+		return nil
+	}
+	return ErrCancelled
+}
+
+// ConfirmAction reports that there is no channel to ask through.
+func (Refusing) ConfirmAction(action, key, path string) error {
+	return fmt.Errorf("%w — run this yourself in a terminal: %s (target: %s)",
+		ErrUnavailable, actionCommand(action, key), path)
+}
+
+// ConfirmAction approves unless ConfirmErr is set.
+func (f Fake) ConfirmAction(action, key, path string) error {
+	if f.OnAction != nil {
+		f.OnAction(action, key, path)
+	}
+	return f.ConfirmErr
+}
+
 // Confirm shows the authorisation dialog and reports whether the user approved.
 func (o Osascript) Confirm(class, key, path string, retypeKey bool) error {
 	timeout := o.Timeout

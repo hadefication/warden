@@ -54,3 +54,22 @@ func TestExposeCallSitesStayFew(t *testing.T) {
 			len(production), budget, strings.Join(production, "\n"))
 	}
 }
+
+// internal/refs deals in key names and file paths. Keeping it structurally
+// unable to hold a value is what makes it the cheapest analysis here to trust:
+// the worst a bug in it can do is name the wrong file.
+func TestRefsPackageCannotReachAValue(t *testing.T) {
+	out, err := exec.Command("go", "list", "-f", "{{join .Deps \"\\n\"}}",
+		"github.com/hadefication/warden/internal/refs").Output()
+	if err != nil {
+		t.Fatalf("go list: %v", err)
+	}
+	for _, dep := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		switch dep {
+		case "github.com/hadefication/warden/internal/store",
+			"github.com/hadefication/warden/internal/secret",
+			"github.com/hadefication/warden/internal/query":
+			t.Errorf("internal/refs depends on %s — it must never be able to hold a value", dep)
+		}
+	}
+}

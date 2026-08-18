@@ -93,6 +93,9 @@ func invocations(dir string) map[string][][]string {
 		"doctor": {
 			{"doctor", "--project", dir},
 			{"doctor", "--project", dir, "--json"},
+			{"doctor", "--project", dir, "--strict"},
+			{"doctor", "--project", dir, "--strict=error"},
+			{"doctor", "--project", dir, "--strict=loud"},
 		},
 		"set": {
 			{"set", "DB_PASSWORD", canaryPassword, "--project", dir},
@@ -100,6 +103,34 @@ func invocations(dir string) map[string][][]string {
 			{"set", "MODE", "sk_live_" + canaryStripe, "--project", dir},
 			{"set", "--secret", "DB_PASSWORD", "--project", dir},
 			{"set", "--secret", "DB_PASSWORD", canaryPassword, "--project", dir},
+		},
+		"unset": {
+			{"unset", "DB_PASSWORD", "--project", dir},
+			{"unset", "GH_TOKEN", "--project", dir},
+			{"unset", "EMPTY_TOKEN", "--project", dir},
+			{"unset", "ABSENT", "--project", dir},
+			{"unset", "APP_NAME", "--project", "/nonexistent"},
+		},
+		"clear": {
+			{"clear", "STRIPE_SECRET", "--project", dir},
+			{"clear", "EMPTY_TOKEN", "--project", dir},
+			{"clear", "ABSENT", "--project", dir},
+		},
+		"refs": {
+			{"refs", "--project", dir},
+			{"refs", "--project", dir, "--json"},
+			{"refs", "--project", dir, "--strict"},
+			{"refs", "--project", dir, "--undeclared"},
+			{"refs", "--project", dir, "--unused"},
+			{"refs", "--project", dir, "--pattern", "bad(("},
+		},
+		"hook": {
+			{"hook"},
+			{"hook", "--check", "--settings", "/nonexistent/settings.json"},
+			{"hook", "--guard"},
+			{"hook", "--target", "emacs"},
+			{"hook", "--check", "--settings", "/nonexistent/settings.json"},
+			{"hook", "--install", "--settings", "/nonexistent/settings.json"},
 		},
 		"mcp": nil, // long-running stdio server; covered by internal/mcpserver tests
 	}
@@ -150,6 +181,13 @@ func TestGlobalScopeCommandsDoNotLeak(t *testing.T) {
 	}
 	t.Setenv("HOME", home)
 
+	// Without this, the write commands here reach prompt.Default() — which on a
+	// developer's Mac is a real osascript dialog, and the suite sits waiting on a
+	// 60-second timeout for a prompt nobody is looking at.
+	prev := SetPrompter
+	SetPrompter = prompt.Fake{Value: canaryTyped}
+	t.Cleanup(func() { SetPrompter = prev })
+
 	for _, args := range [][]string{
 		{"has", "GH_TOKEN", "--global"},
 		{"list", "--global"},
@@ -160,6 +198,9 @@ func TestGlobalScopeCommandsDoNotLeak(t *testing.T) {
 		{"missing", "--global"},
 		{"set", "GH_TOKEN", canaryToken, "--global"},
 		{"classify", "GH_TOKEN", "--set", "public", "--global"},
+		{"unset", "GH_TOKEN", "--global"},
+		{"clear", "STRIPE_SECRET", "--global"},
+		{"refs", "--global"},
 	} {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
 			var out, errw bytes.Buffer

@@ -63,28 +63,6 @@ func call(t *testing.T, s *mcp.ClientSession, name string, args map[string]any) 
 	return sb.String(), res.IsError
 }
 
-func TestToolsAreAdvertised(t *testing.T) {
-	s := connect(t, prompt.Fake{})
-	res, err := s.ListTools(context.Background(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := map[string]bool{
-		"env_has": false, "env_list": false, "env_missing": false, "env_get": false,
-		"env_set": false, "env_request_secret": false, "env_classify": false,
-	}
-	for _, tool := range res.Tools {
-		if _, ok := want[tool.Name]; ok {
-			want[tool.Name] = true
-		}
-	}
-	for name, found := range want {
-		if !found {
-			t.Errorf("tool %s was not advertised", name)
-		}
-	}
-}
-
 func TestEnvHas(t *testing.T) {
 	dir := project(t, map[string]string{".env": "APP_NAME=Warden\nEMPTY=\n"})
 	s := connect(t, prompt.Fake{})

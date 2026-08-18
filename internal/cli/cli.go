@@ -80,6 +80,7 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 	root.PersistentFlags().Bool("json", false, "emit machine-readable JSON")
 
 	addReadCommands(root, out)
+	addHookCommand(root, out)
 	addWriteCommands(root, out)
 
 	root.AddCommand(&cobra.Command{

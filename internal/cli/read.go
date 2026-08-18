@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -150,45 +149,97 @@ func addReadCommands(root *cobra.Command, out io.Writer) {
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	root.AddCommand(newDoctorCmd(out))
+	addRefsCommand(root, out)
+}
+
+// strictLevels maps the --strict argument to the lowest severity that fails.
+var strictLevels = map[string]query.Severity{
+	"warn":  query.SeverityWarn,
+	"error": query.SeverityError,
+}
+
+func newDoctorCmd(out io.Writer) *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "report configuration problems without revealing any value",
-		Args:  cobra.NoArgs,
+		Long: "Report configuration problems.\n\n" +
+			"Bare doctor always exits 0: it reports, it does not gate. Pass --strict to\n" +
+			"exit 1 when problems exist, so the command can gate a deploy or a hook.\n" +
+			"--strict=error narrows that to error-severity findings only. A missing .env\n" +
+			"still exits 3 under either — that is warden failing, not the project.",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			threshold := query.SeverityError + 1 // higher than any severity: nothing gates
+			if cmd.Flags().Changed("strict") {
+				level, _ := cmd.Flags().GetString("strict")
+				s, ok := strictLevels[level]
+				if !ok {
+					return &ExitError{Code: CodeError, Msg: fmt.Sprintf(
+						"warden: unknown --strict level %q — use warn or error", level)}
+				}
+				threshold = s
+			}
+
 			q, err := openQuery(cmd)
 			if err != nil {
 				return err
 			}
-			var problems []string
 
-			if st, err := os.Stat(q.Path()); err == nil && st.Mode().Perm()&0o077 != 0 {
-				problems = append(problems, fmt.Sprintf(
-					"%s has permissions %04o — group or world readable; run chmod 600 on it",
-					q.Path(), st.Mode().Perm()))
-			}
-			for _, r := range q.List() {
-				if !r.Set {
-					problems = append(problems, fmt.Sprintf("%s is declared but empty", r.Key))
+			withRefs, _ := cmd.Flags().GetBool("refs")
+			problems := q.Doctor()
+			if withRefs {
+				opts, err := refOptionsFrom(cmd)
+				if err != nil {
+					return &ExitError{Code: CodeError, Msg: fmt.Sprintf("warden: %v", err)}
 				}
-			}
-			if keys, err := q.Missing(); err == nil {
-				for _, k := range keys {
-					problems = append(problems, fmt.Sprintf("%s is declared in .env.example but not set", k))
-				}
+				problems = q.DoctorWithRefs(opts)
 			}
 
 			if jsonFlag(cmd) {
-				return json.NewEncoder(out).Encode(problems)
+				if problems == nil {
+					problems = []query.Problem{}
+				}
+				if err := json.NewEncoder(out).Encode(problems); err != nil {
+					return err
+				}
+			} else {
+				printProblems(out, q.Path(), problems)
+				if !withRefs {
+					// A silent omission reads as a clean bill of health.
+					fmt.Fprintln(out, "(not checked: code references — pass --refs to include them)")
+				}
 			}
-			if len(problems) == 0 {
-				fmt.Fprintf(out, "ok: no problems found in %s\n", q.Path())
-				return nil
-			}
-			fmt.Fprintf(out, "%d problem(s) in %s:\n", len(problems), q.Path())
+
 			for _, p := range problems {
-				fmt.Fprintf(out, "  - %s\n", p)
+				if p.Severity >= threshold {
+					// Silent: the findings have already been printed.
+					return &ExitError{Code: CodeNo}
+				}
 			}
 			return nil
 		},
-	})
+	}
+	cmd.Flags().Bool("refs", false,
+		"also compare against keys the source tree reads (walks the project)")
+	addRefFlags(cmd)
+	cmd.Flags().String("strict", "",
+		`exit 1 when problems are found: "warn" (default) or "error"`)
+	// So --strict works bare as well as --strict=error.
+	cmd.Flags().Lookup("strict").NoOptDefVal = "warn"
+	return cmd
+}
+
+func printProblems(out io.Writer, path string, problems []query.Problem) {
+	if len(problems) == 0 {
+		fmt.Fprintf(out, "ok: no problems found in %s\n", path)
+		return
+	}
+	fmt.Fprintf(out, "%d problem(s) in %s:\n", len(problems), path)
+	for _, p := range problems {
+		fmt.Fprintf(out, "  - %-5s %s\n", p.Severity, p.Message)
+		if p.Fix != "" {
+			fmt.Fprintf(out, "           fix: %s\n", p.Fix)
+		}
+	}
 }

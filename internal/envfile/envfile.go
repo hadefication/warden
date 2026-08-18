@@ -150,6 +150,29 @@ func (f *File) Set(key, value string) {
 	f.lines = append(f.lines, line{key: key, value: value, modified: true})
 }
 
+// Unset removes every assignment of key and reports how many it removed.
+//
+// Every one, not the last: Get resolves a duplicated key to its final
+// assignment, so removing only that line would leave an earlier value live while
+// reporting success. For a credential, that is the worst available outcome.
+//
+// Comments above a removed line are left in place. Whether a comment describes
+// the key or the section it sits in is not knowable from the file, and guessing
+// wrong deletes documentation the user wrote.
+func (f *File) Unset(key string) int {
+	kept := make([]line, 0, len(f.lines))
+	removed := 0
+	for _, l := range f.lines {
+		if l.key == key {
+			removed++
+			continue
+		}
+		kept = append(kept, l)
+	}
+	f.lines = kept
+	return removed
+}
+
 func render(l line) string {
 	if !l.modified {
 		return l.raw
@@ -183,7 +206,9 @@ func (f *File) Save() error {
 		parts[i] = render(l)
 	}
 	out := strings.Join(parts, "\n")
-	if f.finalNL {
+	// With no lines left there is no shape to preserve, and a lone newline would
+	// be content this file no longer has.
+	if f.finalNL && len(f.lines) > 0 {
 		out += "\n"
 	}
 	if f.crlf {

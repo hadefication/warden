@@ -73,4 +73,68 @@ func addWriteCommands(root *cobra.Command, out io.Writer) {
 	}
 	cmd.Flags().Bool("secret", false, "prompt for the value instead of taking it as an argument")
 	root.AddCommand(cmd)
+
+	root.AddCommand(&cobra.Command{
+		Use:   "unset <KEY>",
+		Short: "remove a key entirely, after confirmation",
+		Long: "Remove every assignment of a key.\n\n" +
+			"Every one, not the last: a duplicated key resolves to its final assignment,\n" +
+			"so removing only that line would leave an earlier value live while looking\n" +
+			"like it worked. Works on secret keys — deleting reveals nothing, and hand-\n" +
+			"editing the file is the operation this exists to replace.\n\n" +
+			"A key that currently holds a value needs confirmation on your screen.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			w, err := write.Open(scopeFrom(cmd), SetPrompter)
+			if err != nil {
+				return &ExitError{Code: CodeError, Msg: fmt.Sprintf("warden: %v", err)}
+			}
+			n, err := w.Unset(args[0])
+			if err := removalError(err, args[0], w.Path()); err != nil {
+				return err
+			}
+			if n > 1 {
+				fmt.Fprintf(out, "ok: %s removed (%d assignments) from %s\n", args[0], n, w.Path())
+			} else {
+				fmt.Fprintf(out, "ok: %s removed from %s\n", args[0], w.Path())
+			}
+			return nil
+		},
+	})
+
+	root.AddCommand(&cobra.Command{
+		Use:   "clear <KEY>",
+		Short: "empty a key's value, keeping it declared",
+		Long: "Empty a key's value while leaving the declaration in place, so it still\n" +
+			"shows up in warden list as declared-but-unset. Use unset to remove it\n" +
+			"entirely.\n\n" +
+			"A key that currently holds a value needs confirmation on your screen.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			w, err := write.Open(scopeFrom(cmd), SetPrompter)
+			if err != nil {
+				return &ExitError{Code: CodeError, Msg: fmt.Sprintf("warden: %v", err)}
+			}
+			if err := removalError(w.Clear(args[0]), args[0], w.Path()); err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "ok: %s cleared in %s\n", args[0], w.Path())
+			return nil
+		},
+	})
+}
+
+// removalError maps the failures unset and clear share onto exit codes. An
+// absent key is 1, the same "no" that has reports; a declined prompt is 3,
+// matching a cancelled set --secret.
+func removalError(err error, key, path string) error {
+	switch {
+	case errors.Is(err, write.ErrAbsent):
+		return &ExitError{Code: CodeNo, Msg: fmt.Sprintf("warden: %s is not present in %s", key, path)}
+	case errors.Is(err, prompt.ErrCancelled):
+		return &ExitError{Code: CodeError, Msg: "warden: cancelled — nothing was written"}
+	case err != nil:
+		return &ExitError{Code: CodeError, Msg: fmt.Sprintf("warden: %v", err)}
+	}
+	return nil
 }

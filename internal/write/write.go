@@ -33,6 +33,11 @@ var ErrUnwaivableShape = errors.New(
 // use and would only serve to unmask one.
 var ErrGlobalScope = errors.New("reclassification is not available in global scope")
 
+// ErrAbsent means the key does not appear in the file at all, so there is
+// nothing to remove or empty. Distinct from a key that is present and empty:
+// that one has a line to delete.
+var ErrAbsent = errors.New("key is not present")
+
 // W is an open, writable view of one store.
 type W struct {
 	st     store.Store
@@ -95,6 +100,42 @@ func (w *W) SetSecret(key string) error {
 		return err
 	}
 	return w.st.Set(key, v.Expose())
+}
+
+// Unset removes every assignment of key and reports how many it removed.
+//
+// A key holding a value goes through the prompt first. Nothing is revealed by a
+// deletion, so the risk being guarded is destruction, not disclosure — the user
+// may not be able to recover the value from anywhere else. A key that is absent
+// or already empty skips the prompt: there is nothing to lose, and asking anyway
+// would train the answer.
+func (w *W) Unset(key string) (int, error) {
+	v, present := w.st.Get(key)
+	if !present {
+		return 0, fmt.Errorf("%s: %w", key, ErrAbsent)
+	}
+	if v.IsSet() {
+		if err := w.p.ConfirmAction("remove", key, w.st.Path()); err != nil {
+			return 0, err
+		}
+	}
+	return w.st.Unset(key)
+}
+
+// Clear empties a key's value while leaving it declared, so it still shows up in
+// warden list as declared-but-unset. Same authorisation rule as Unset.
+func (w *W) Clear(key string) error {
+	v, present := w.st.Get(key)
+	if !present {
+		return fmt.Errorf("%s: %w", key, ErrAbsent)
+	}
+	if !v.IsSet() {
+		return nil
+	}
+	if err := w.p.ConfirmAction("clear", key, w.st.Path()); err != nil {
+		return err
+	}
+	return w.st.Set(key, "")
 }
 
 // Reclassify records an explicit class for key in the project's .env.schema,

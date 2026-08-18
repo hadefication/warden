@@ -25,6 +25,16 @@ func (s *fileStore) Set(key, value string) error {
 	return s.f.Save()
 }
 
+func (s *fileStore) Unset(key string) (int, error) {
+	n := s.f.Unset(key)
+	if n == 0 {
+		// Nothing changed, so there is nothing to write. Saving anyway would
+		// rewrite a file of credentials for no reason.
+		return 0, nil
+	}
+	return n, s.f.Save()
+}
+
 // OpenDotenv finds the nearest .env at or above startDir and opens it. The walk
 // stops at $HOME so a stray .env in the home directory is the furthest it can
 // reach, and never escapes into shared parent directories above it.

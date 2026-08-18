@@ -25,4 +25,6 @@ type Store interface {
 	Get(key string) (secret.Secret, bool)
 	// Set writes key = value, preserving the rest of the file.
 	Set(key, value string) error
+	// Unset removes every assignment of key and reports how many it removed.
+	Unset(key string) (int, error)
 }

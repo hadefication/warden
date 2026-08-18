@@ -46,6 +46,15 @@ type Prompter interface {
 	// by muscle memory is too weak a gate. Declining, mistyping, and timing out
 	// are all ErrCancelled: the caller learns "no", never why.
 	Confirm(class, key, path string, retypeKey bool) error
+
+	// ConfirmAction asks the user to authorise a change that destroys a value
+	// rather than revealing one: "remove" drops the key, "clear" empties it.
+	//
+	// The plain ceremony, never the retype: what is at stake is a value the user
+	// may not be able to recover, not a value warden would print. Guarding
+	// deletion behind the disclosure ceremony would teach the retype to mean
+	// "confirm", which is exactly what must not happen.
+	ConfirmAction(action, key, path string) error
 }
 
 // Fake is a test double.
@@ -58,6 +67,8 @@ type Fake struct {
 	// to prove a refusal happened before the user was asked, and to check which
 	// ceremony a given direction demanded.
 	OnConfirm func(class, key, path string, retypeKey bool)
+	// OnAction, when set, is called with each ConfirmAction's arguments.
+	OnAction func(action, key, path string)
 }
 
 func (f Fake) AskSecret(string, string) (secret.Secret, error) {
