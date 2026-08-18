@@ -145,3 +145,23 @@ func TestErrorsNeverQuoteTheValue(t *testing.T) {
 		t.Errorf("LEAK: error quoted the value: %v", err)
 	}
 }
+
+// "exit status 154" is not something a user can act on, and it is what a locked
+// keychain or an ssh session actually produces. The message has to name a way
+// out.
+func TestABackendFailureExplainsItselfAndOffersTheWayOut(t *testing.T) {
+	r := &recorder{err: errors.New("exit status 154")}
+	err := Security{Run: r.run}.Set(secret.Secret("master-key-marker"))
+	if err == nil {
+		t.Fatal("want an error")
+	}
+	msg := err.Error()
+	for _, want := range []string{"locked", "ssh", "--passphrase"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("message should mention %q: %s", want, msg)
+		}
+	}
+	if strings.Contains(msg, "master-key-marker") {
+		t.Errorf("LEAK: %s", msg)
+	}
+}

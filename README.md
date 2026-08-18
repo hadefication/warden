@@ -77,6 +77,9 @@ warden unset OLD_TOKEN          # remove a key, after you authorise it
 warden clear OLD_TOKEN          # empty it, keeping the declaration
 warden classify FOO --set public  # records an override, after you authorise it
 warden hook                     # print the harness hook that redirects env reads here
+warden vault set stripe/live --key STRIPE_SECRET   # store a key warden owns
+warden vault list               # names, target keys, remaining time — never values
+warden vault push stripe/live --to ~/Herd/app      # write it into that project's .env
 warden mcp                      # MCP server on stdio
 ```
 
@@ -161,7 +164,76 @@ read a file in ways no matcher enumerates — `python -c`, a heredoc, a base64
 round trip, a build script that loads dotenv. Warden is not a boundary and the
 hook does not make it one.
 
-### Exit codes
+### The vault
+
+`.env` and `~/.secrets` hold credentials that already exist somewhere. The vault
+is warden's own storage: a credential lives there once, and gets pushed into
+whatever project needs it.
+
+```sh
+warden vault init [--passphrase]                 # choose the at-rest mode
+warden vault set <name> --key <KEY> [--ttl 8h]   # create or replace; always prompts
+warden vault list [--json]                       # names, keys, remaining time
+warden vault has <name>                          # exit 0 if present and unexpired
+warden vault edit <name> [--name new] [--key K] [--ttl 8h|none]
+warden vault rm <name>                           # confirmation on your screen
+warden vault push <name> --to <dir>|global [--as KEY] [--yes] [--force]
+```
+
+An entry is addressed by a **name** you choose and separately records the **env
+key** it lands as. That indirection is what lets two projects with different
+`DB_PASSWORD` values coexist as `acme/db` and `beta/db` — a store addressed by
+env key can only hold one of them.
+
+`--key` may be omitted when the name is already a valid env key, so `warden vault
+set STRIPE_SECRET` needs nothing further.
+
+**There is no `warden vault get`.** No command renders a vault value, and that is
+the design rather than a refusal — nothing needs gating because nothing asks. A
+value leaves the vault only through `push`, which hands it to a destination file
+inside a `secret.Secret`. Exit code 2 never fires in the vault.
+
+`push` is the operation that moves a credential from a file that exists nowhere
+else into one that may well be committed, so it confirms on your screen. `--yes`
+skips that on the CLI and is unavailable to the MCP server. An already-set
+destination key is refused unless you pass `--force`.
+
+### Temporary entries
+
+`--ttl` takes `30m`, `8h`, `7d`. **The maximum is 30 days, and a longer one is
+refused rather than shortened** — silently clamping would have you believe a
+credential lives for a year while it dies in a month.
+
+An expired entry is indistinguishable from one that never existed: `has` exits 1,
+`list` omits it, `push` fails as absent, and it is dropped from the file at the
+next write. An entry with no `--ttl` is permanent and unbounded, and that
+asymmetry is the point: the cap exists to stop `--ttl 8760h` masquerading as
+permanent.
+
+### At rest
+
+The vault is one file at `~/.warden/vault`, mode `0600`: a plaintext header
+naming how to unseal it, then a single AES-256-GCM blob. Entry names are inside
+the seal, because `acme/prod-db` is itself worth not leaking.
+
+The master key lives in your OS keyring by default — the macOS Keychain, or
+libsecret on Linux — which is what keeps every other command free of a passphrase
+prompt. `vault init --passphrase` derives it with Argon2id instead.
+
+**Be clear about what this buys.** Encryption at rest defends against a synced
+backup, a stolen laptop with a locked keychain, a `cat ~/.warden/vault`, and an
+agent grepping your home directory. It does **not** defend against a local
+process: warden's release binaries are built with `CGO_ENABLED=0`, so keyring
+access goes through `/usr/bin/security` and `secret-tool`, and a keychain ACL
+therefore protects *those tools* rather than warden. Anything on your machine
+that can run `security` can read the master key. `--passphrase` narrows that gap
+at the cost of a dialog on every command, and makes the vault unusable from the
+MCP server where no prompt may be available.
+
+This is the same line warden draws everywhere else. It is written down so
+"encrypted" does not imply a boundary that isn't there.
+
+## Exit codes
 
 | Code | Meaning |
 |------|---------|
@@ -226,14 +298,19 @@ can ask what a key's class is but never change it.
 
 `warden mcp` serves the same surface on stdio: `env_has`, `env_list`,
 `env_missing`, `env_get`, `env_doctor`, `env_refs`, `env_set`,
-`env_request_secret`, `env_unset`, `env_clear`, `env_classify`. Every tool takes
-an optional `project` path, because the server's working directory will not
-reliably match the project under discussion.
+`env_request_secret`, `env_unset`, `env_clear`, `env_classify`, plus the vault's
+`vault_list`, `vault_has`, `vault_request_secret`, `vault_delete` and
+`vault_push`. Every env tool takes an optional `project` path, because the
+server's working directory will not reliably match the project under discussion.
 
-Three things are deliberately CLI-only, and a test makes each omission
-deliberate rather than accidental: `classify --set` (an agent may ask a key's
-class, never change it), `hook` (a tool that edits the harness's own permission
-config is a privilege-escalation primitive), and `mcp` itself.
+Five things are deliberately CLI-only, and a test makes each omission deliberate
+rather than accidental: `classify --set` (an agent may ask a key's class, never
+change it), `hook` (a tool that edits the harness's own permission config is a
+privilege-escalation primitive), `mcp` itself, and the vault's `init` and `edit`
+(the first chooses how the vault is protected at rest; the second would let an
+agent quietly extend a credential's lifetime). `vault_push` exists but cannot
+skip its confirmation — `--yes` is CLI-only, and `vaultPushArgs` has no field
+for it.
 
 ## How the guarantee is enforced
 
@@ -246,8 +323,10 @@ Four mechanisms, all checked by tests rather than convention:
   markers and asserts none appear in stdout or stderr. Registering a new command
   without adding it to the coverage table fails the build.
 - **An architecture test** asserts `internal/cli`, `internal/mcpserver` and
-  `cmd/warden` never import `internal/store` directly — so no surface can reach a
-  raw value without passing a classification first. A second one holds
+  `cmd/warden` never import `internal/store`, `internal/vault` or
+  `internal/keyring` directly — so no surface can reach a raw value without
+  passing a classification first, and none can reach the key that unseals the
+  vault. A second one holds
   `internal/refs` to the same line: it deals in key names and file paths, and is
   structurally unable to hold a value.
 - **A parity test** maps every CLI command to the MCP tool that covers it, and
@@ -264,5 +343,5 @@ plan in `docs/superpowers/plans/2026-08-10-warden.md`.
 
 Later work has one spec per feature in `docs/superpowers/specs/`. Implemented:
 `doctor --strict`, `env_doctor` and the parity test, `unset`/`clear`, `refs`,
-and `hook`. Proposed but not built: `copy`, `scan`, `run`, `example --sync`,
-`--file`/`diff`, rotation age, and the expanded shape rules.
+`hook`, and the `vault`. Proposed but not built: `copy`, `scan`, `run`,
+`example --sync`, `--file`/`diff`, rotation age, and the expanded shape rules.

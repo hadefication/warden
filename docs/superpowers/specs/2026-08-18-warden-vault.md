@@ -1,7 +1,7 @@
 # Warden — `vault`, an encrypted cross-project store for keys you reuse
 
 **Date:** 2026-08-18
-**Status:** proposed
+**Status:** implemented 2026-08-19
 
 ## Problem
 

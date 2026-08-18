@@ -116,8 +116,20 @@ func (f *Fake) Delete() error {
 	return nil
 }
 
-// wrapErr reports a backend failure without ever quoting the value. The caller
-// is frequently an agent, and a failed write is not a reason to disclose a key.
+// wrapErr reports a backend failure without ever quoting the value, and without
+// piping the child's stderr through either. The caller is frequently an agent; a
+// failed write is not a reason to disclose a key, and subprocess output is not
+// something warden's leak tests cover.
+//
+// What it does instead is name the causes, because "exit status 154" is not
+// something a user can act on. Every one of these is a real way to reach here:
+// an ssh session with no access to the login keychain, a keychain that is locked,
+// a CI runner with no keyring at all, or a $HOME that does not hold the keychain
+// security expects to find.
 func wrapErr(op string, err error) error {
-	return fmt.Errorf("keyring %s failed: %w", op, err)
+	return fmt.Errorf(
+		"keyring %s failed (%w) — the OS keyring refused. Common causes: the login keychain is "+
+			"locked, this is an ssh or CI session without access to it, or $HOME does not point at "+
+			"the keychain. A passphrase vault needs no keyring: warden vault init --passphrase",
+		op, err)
 }
