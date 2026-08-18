@@ -66,6 +66,17 @@ func actionSentence(action, key string) string {
 	switch action {
 	case "clear":
 		return fmt.Sprintf("Clear the value of %s, leaving the key declared and empty.", key)
+	case "replace":
+		return fmt.Sprintf(
+			"Replace the value stored for %s. The value it holds now cannot be recovered.", key)
+	case "edit":
+		return fmt.Sprintf(
+			"Change %s. Its value is untouched, but anything pushing it by its old name or key "+
+				"will stop finding it.", key)
+	case "push":
+		return fmt.Sprintf(
+			"Write the vault's value for %s into this file. Check the path below: a credential "+
+				"that exists nowhere else is about to live somewhere that may be committed.", key)
 	default:
 		return fmt.Sprintf("Remove %s. Its value will be gone from this file.", key)
 	}
@@ -73,11 +84,21 @@ func actionSentence(action, key string) string {
 
 // actionCommand names the command the user can run themselves when there is no
 // channel to ask them through.
+// Every action needs its own: telling someone to run `warden unset` when they
+// asked to push is worse than telling them nothing.
 func actionCommand(action, key string) string {
-	if action == "clear" {
+	switch action {
+	case "clear":
 		return "warden clear " + key
+	case "replace":
+		return "warden vault set " + key
+	case "edit":
+		return "warden vault edit " + key
+	case "push":
+		return "warden vault push " + key
+	default:
+		return "warden unset " + key
 	}
-	return "warden unset " + key
 }
 
 // buildActionScript renders the AppleScript for a destructive-change dialog.

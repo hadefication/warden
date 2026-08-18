@@ -185,3 +185,23 @@ func (w *W) classOf(key string) classify.Result {
 	v, _ := w.st.Get(key)
 	return classify.Classify(key, v, w.sch)
 }
+
+// has reports whether the destination store already holds a usable value for
+// key. Push consults it so a push cannot silently overwrite a value the project
+// is currently running on.
+func (w *W) has(key string) bool {
+	v, ok := w.st.Get(key)
+	return ok && v.IsSet()
+}
+
+// setFromVault writes a value that came from the vault rather than from a
+// prompt.
+//
+// It exists because Push must not go through SetSecret, which would ask the user
+// to type a value warden is already holding, and must not go through SetPublic,
+// which refuses credential-shaped values — refusing them is right for a caller
+// handing warden a value, and wrong for warden moving its own. The value crosses
+// as a secret.Secret and is exposed here, at one reviewed call site.
+func (w *W) setFromVault(key string, v secret.Secret) error {
+	return w.st.Set(key, v.Expose())
+}
