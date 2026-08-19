@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hadefication/warden/internal/secret"
@@ -94,7 +95,7 @@ func ValidateName(name string) error {
 	}
 	// "." and ".." are legal under the charset but read as path traversal to
 	// every human who sees them, and a name is not a path. Refuse both.
-	for _, seg := range splitSegments(name) {
+	for _, seg := range strings.Split(name, "/") {
 		if seg == "." || seg == ".." {
 			return fmt.Errorf("%q: %w — %q is not a usable segment", name, ErrBadName, seg)
 		}
@@ -159,16 +160,4 @@ func ParseTTL(s string) (time.Duration, error) {
 		return 0, fmt.Errorf("%q is not a future window", s)
 	}
 	return d, nil
-}
-
-func splitSegments(name string) []string {
-	var out []string
-	start := 0
-	for i := 0; i < len(name); i++ {
-		if name[i] == '/' {
-			out = append(out, name[start:i])
-			start = i + 1
-		}
-	}
-	return append(out, name[start:])
 }

@@ -89,10 +89,9 @@ func Init(o Options, mode Mode) error {
 	if _, err := os.Stat(path); err == nil {
 		return fmt.Errorf("%w at %s", ErrExists, path)
 	}
+	// Save establishes the key under the lock; doing it here as well would
+	// reopen the race that ordering closes.
 	v := &V{opts: o, path: path, hdr: header{Mode: mode}}
-	if err := v.establishKey(); err != nil {
-		return err
-	}
 	return v.Save()
 }
 
@@ -239,10 +238,16 @@ func (v *V) Rename(old, next string) error {
 // would have the second silently drop the first's entry. The lockfile is what
 // stops that.
 func (v *V) Save() error {
-	if err := v.establishKey(); err != nil {
-		return err
-	}
 	return withLock(v.path, func() error {
+		// Establishing the key belongs inside the lock, not before it. Minting
+		// it outside means a writer that then loses the lock has already
+		// replaced the keychain item, leaving a displaced key beside a file
+		// sealed with the old one — the unrecoverable state this package exists
+		// to avoid.
+		if err := v.establishKey(); err != nil {
+			return err
+		}
+
 		now := v.opts.now()
 		kept := make([]Entry, 0, len(v.entries))
 		for _, e := range v.entries {

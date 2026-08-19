@@ -39,26 +39,16 @@ func InitVault(home string, p prompt.Prompter, passphrase bool) error {
 	if passphrase {
 		mode = vault.ModeArgon2id
 	}
-	return vault.Init(vaultOptions(home, p), mode)
+	return vault.Init(query.VaultOptions(home, p), mode)
 }
 
 // OpenVault opens the vault under home for writing.
 func OpenVault(home string, p prompt.Prompter) (*VW, error) {
-	v, err := vault.Open(vaultOptions(home, p))
+	v, err := vault.Open(query.VaultOptions(home, p))
 	if err != nil {
 		return nil, err
 	}
 	return &VW{v: v, p: p, home: home}, nil
-}
-
-// vaultOptions mirrors query's, so both surfaces honour the same test seams.
-func vaultOptions(home string, p prompt.Prompter) vault.Options {
-	return vault.Options{
-		Home:    home,
-		Keyring: query.VaultKeyring,
-		Prompt:  p,
-		Now:     query.VaultNow,
-	}
 }
 
 // Path is the vault file.
@@ -93,7 +83,7 @@ func (w *VW) Set(name, key string, ttl time.Duration) error {
 
 	e := vault.Entry{Name: name, Key: key, Value: value}
 	if ttl > 0 {
-		e.Expires = w.now().Add(ttl)
+		e.Expires = query.Now().Add(ttl)
 	}
 	if err := w.v.Put(e); err != nil {
 		return err
@@ -135,7 +125,7 @@ func (w *VW) Edit(name string, o EditOpts) error {
 		if *o.TTL == 0 {
 			e.Expires = time.Time{}
 		} else {
-			e.Expires = w.now().Add(*o.TTL)
+			e.Expires = query.Now().Add(*o.TTL)
 		}
 	}
 	// Put replaces by name, so a rename is a remove plus a put under the new one.
@@ -208,11 +198,4 @@ func (w *VW) Push(name string, dest query.Scope, as string, force, yes bool) (Pu
 		return PushResult{}, err
 	}
 	return PushResult{Key: key, Path: dw.Path()}, nil
-}
-
-func (w *VW) now() time.Time {
-	if query.VaultNow != nil {
-		return query.VaultNow()
-	}
-	return time.Now()
 }

@@ -464,3 +464,39 @@ func TestSaveLeavesNoTemporaryFileBehind(t *testing.T) {
 		}
 	}
 }
+
+// The master key must be minted under the same lock that writes the file.
+//
+// Minting it outside means a writer that goes on to lose the lock has already
+// replaced the keychain item — leaving the key that unseals nothing next to a
+// file sealed with the key it displaced. That is the one unrecoverable state
+// this package exists to avoid, and no amount of care in Open can undo it.
+func TestALockedSaveDoesNotMintAKeyItWillNeverUse(t *testing.T) {
+	o, kr := opts(t)
+
+	// Another process holds the lock.
+	if err := os.MkdirAll(filepath.Dir(Path(o.Home)), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	lock := Path(o.Home) + ".lock"
+	f, err := os.OpenFile(lock, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+	t.Cleanup(func() { _ = os.Remove(lock) })
+
+	v, err := Open(o)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	_ = v.Put(Entry{Name: "a", Key: "A", Value: secret.Secret("v")})
+
+	if err := v.Save(); !errors.Is(err, ErrLocked) {
+		t.Fatalf("Save = %v, want ErrLocked", err)
+	}
+	if kr.Present {
+		t.Fatal("a Save that never wrote the file still put a master key in the keyring — " +
+			"a concurrent writer's vault is now sealed with a key that has been displaced")
+	}
+}

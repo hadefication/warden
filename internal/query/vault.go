@@ -29,6 +29,16 @@ func ParseTTL(s string) (time.Duration, error) { return vault.ParseTTL(s) }
 // ErrNoVaultEntry is vault.ErrNoVault, re-exported so a surface can match on it.
 var ErrNoVaultEntry = vault.ErrNoVault
 
+// Now is the clock the vault surfaces read, honouring the VaultNow seam. It
+// exists so callers stop repeating the nil check — and, more to the point, so
+// none of them quietly forgets it and starts reporting real time in a test.
+func Now() time.Time {
+	if VaultNow != nil {
+		return VaultNow()
+	}
+	return time.Now()
+}
+
 // VaultRow is one entry's public-facing summary. It deliberately has no value
 // field — the same rule Row follows for .env.
 type VaultRow struct {
@@ -48,14 +58,20 @@ type VQ struct{ v *vault.V }
 // p collects the passphrase for a vault in argon2id mode. A keyring-mode vault
 // never reaches it.
 func OpenVault(home string, p prompt.Prompter) (*VQ, error) {
-	v, err := vault.Open(vaultOptions(home, p))
+	v, err := vault.Open(VaultOptions(home, p))
 	if err != nil {
 		return nil, err
 	}
 	return &VQ{v: v}, nil
 }
 
-func vaultOptions(home string, p prompt.Prompter) vault.Options {
+// VaultOptions builds the options both surfaces open a vault with.
+//
+// It is exported so internal/write uses this one rather than keeping a copy:
+// the seams below are what every vault test drives, and two constructors that
+// must be updated in lockstep is exactly how a seam goes quietly dead in one of
+// them.
+func VaultOptions(home string, p prompt.Prompter) vault.Options {
 	return vault.Options{
 		Home:    home,
 		Keyring: VaultKeyring,

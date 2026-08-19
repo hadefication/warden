@@ -261,11 +261,7 @@ func describeWindow(r query.VaultRow) string {
 	if r.Permanent {
 		return "permanent"
 	}
-	remaining := time.Until(r.Expires).Round(time.Minute)
-	if query.VaultNow != nil {
-		remaining = r.Expires.Sub(query.VaultNow()).Round(time.Minute)
-	}
-	return "expires in " + remaining.String()
+	return "expires in " + r.Expires.Sub(query.Now()).Round(time.Minute).String()
 }
 
 func vaultHasCmd() *cobra.Command {
