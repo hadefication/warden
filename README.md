@@ -111,6 +111,7 @@ in a skipped file would look unused:
 ```sh
 warden refs                     # both directions
 warden refs --undeclared        # the code reads it, the file does not set it
+warden refs --unused            # the file sets it, nothing references it
 warden refs --strict            # exit 1 on an undeclared key
 ```
 
@@ -119,6 +120,44 @@ warden refs --strict            # exit 1 on an undeclared key
 invisible to any static analysis, so a key built at runtime looks exactly like a
 dead one. There is deliberately no `--prune`; removal goes through `warden unset`
 one key at a time.
+
+### What the scanner reads
+
+`refs` recognises the accessor forms of four languages:
+
+| Language | Forms |
+|---|---|
+| PHP / Laravel | `env('KEY')`, `Env::get('KEY')` |
+| JavaScript / TypeScript | `process.env.KEY`, `process.env['KEY']`, `import.meta.env.KEY` |
+| Go | `os.Getenv("KEY")`, `os.LookupEnv("KEY")` |
+| Python | `os.environ['KEY']`, `os.environ.get('KEY')`, `getenv('KEY')` |
+
+Shell and YAML interpolation — `$KEY`, `${KEY}` — is recorded as a **weak**
+reference: enough to confirm a key is used, never enough to declare one. `${HOME}`
+appears in every Dockerfile ever written, and a form that common cannot carry an
+`undeclared` finding.
+
+There is no extension allowlist; every text file under the root is read. Binary
+files, anything over 2 MiB, and files that fail to open are skipped and reported
+as such rather than passed over silently.
+
+Vendored trees are skipped by default — `vendor`, `node_modules`, `dist`,
+`build`, `.next`, `target`, `__pycache__`, `.venv`, `venv` — because code you did
+not write reads its own keys, and reporting them buries every real finding.
+`--include-vendor` walks them anyway, for the rare project that keeps real code
+there. `.git`, `.idea` and `.vscode` are skipped under every flag.
+
+A project with its own accessor is not stuck with the built-in list. `--pattern`
+takes a regex whose **first capture group** is the key, is repeatable, and joins
+the strong set — so a match declares a key just as `env()` would:
+
+```sh
+warden refs --pattern "config\(\s*'([A-Z_][A-Z0-9_]*)'"
+warden doctor --refs --pattern '...' --include-vendor
+```
+
+`--pattern` and `--include-vendor` work identically on `doctor --refs`, which
+runs the same walk.
 
 ### Removing a key
 
@@ -147,7 +186,27 @@ warden hook --install --yes       # merge it into .claude/settings.json
 warden hook --install --yes --global   # ...or ~/.claude/settings.json
 warden hook --check               # installed? is warden on PATH? can it run the guard?
 warden hook --uninstall --yes
+warden hook --install --settings path/to/settings.json --yes   # aim it elsewhere
 ```
+
+`--install` and `--uninstall` without `--yes` print what they *would* do and
+write nothing, so a dry run is the default rather than an option. `--target`
+names the harness and defaults to `claude`, the only one supported today;
+another value is refused rather than written half-correctly.
+
+**What it covers is wider than `.env`.** Any `.env.*` variant counts —
+`.env.local`, `.env.production`, `.env.staging` — along with `.secrets`. Four
+names are deliberately left readable, because they hold key names and no values,
+and blocking them is the fastest way to have the whole hook removed in
+irritation:
+
+```
+.env.example  .env.schema  .env.sample  .env.dist
+```
+
+A denial is never bare. It answers with the warden command that gets the same
+answer, since an unexplained refusal just produces three more attempts at a
+workaround.
 
 Installing preserves every other setting and every other hook, replaces warden's
 own entry rather than appending a second copy, and refuses a settings file it
