@@ -16,15 +16,15 @@ import (
 // touching a real keychain.
 func TestSurfacePackagesDoNotImportTheValueLayersDirectly(t *testing.T) {
 	forbidden := []string{
-		"github.com/hadefication/warden/internal/store",
-		"github.com/hadefication/warden/internal/vault",
-		"github.com/hadefication/warden/internal/keyring",
+		"github.com/webteractive/warden/internal/store",
+		"github.com/webteractive/warden/internal/vault",
+		"github.com/webteractive/warden/internal/keyring",
 	}
 
 	for _, pkg := range []string{
-		"github.com/hadefication/warden/internal/cli",
-		"github.com/hadefication/warden/internal/mcpserver",
-		"github.com/hadefication/warden/cmd/warden",
+		"github.com/webteractive/warden/internal/cli",
+		"github.com/webteractive/warden/internal/mcpserver",
+		"github.com/webteractive/warden/cmd/warden",
 	} {
 		out, err := exec.Command("go", "list", "-f", "{{join .Imports \"\\n\"}}", pkg).Output()
 		if err != nil {
@@ -77,15 +77,15 @@ func TestExposeCallSitesStayFew(t *testing.T) {
 // the worst a bug in it can do is name the wrong file.
 func TestRefsPackageCannotReachAValue(t *testing.T) {
 	out, err := exec.Command("go", "list", "-f", "{{join .Deps \"\\n\"}}",
-		"github.com/hadefication/warden/internal/refs").Output()
+		"github.com/webteractive/warden/internal/refs").Output()
 	if err != nil {
 		t.Fatalf("go list: %v", err)
 	}
 	for _, dep := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		switch dep {
-		case "github.com/hadefication/warden/internal/store",
-			"github.com/hadefication/warden/internal/secret",
-			"github.com/hadefication/warden/internal/query":
+		case "github.com/webteractive/warden/internal/store",
+			"github.com/webteractive/warden/internal/secret",
+			"github.com/webteractive/warden/internal/query":
 			t.Errorf("internal/refs depends on %s — it must never be able to hold a value", dep)
 		}
 	}

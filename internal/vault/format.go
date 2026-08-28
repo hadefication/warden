@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 const (

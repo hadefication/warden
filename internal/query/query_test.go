@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hadefication/warden/internal/classify"
+	"github.com/webteractive/warden/internal/classify"
 )
 
 func project(t *testing.T, files map[string]string) string {

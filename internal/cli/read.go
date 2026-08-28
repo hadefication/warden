@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hadefication/warden/internal/query"
+	"github.com/webteractive/warden/internal/query"
 )
 
 func addReadCommands(root *cobra.Command, out io.Writer) {

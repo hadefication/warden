@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hadefication/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/prompt"
 )
 
 func TestEnvDoctorReportsProblemsWithoutValues(t *testing.T) {

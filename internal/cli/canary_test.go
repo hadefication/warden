@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hadefication/warden/internal/keyring"
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/query"
+	"github.com/webteractive/warden/internal/keyring"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/query"
 )
 
 // Every value in the fixture is a unique marker. Secret markers must never

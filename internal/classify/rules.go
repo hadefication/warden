@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 // publicKeys are framework keys that are safe to read and set. Everything here

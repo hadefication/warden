@@ -13,8 +13,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hadefication/warden/internal/mcpserver"
-	"github.com/hadefication/warden/internal/query"
+	"github.com/webteractive/warden/internal/mcpserver"
+	"github.com/webteractive/warden/internal/query"
 )
 
 // ExitError carries a process exit code. An empty Msg prints nothing, which is

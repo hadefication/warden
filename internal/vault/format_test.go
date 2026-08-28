@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 func testKey() []byte { return bytes.Repeat([]byte{7}, 32) }

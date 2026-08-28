@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hadefication/warden/internal/classify"
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/write"
+	"github.com/webteractive/warden/internal/classify"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/write"
 )
 
 // parseClass maps the --set argument onto a class. The two spellings match what

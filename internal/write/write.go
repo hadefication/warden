@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/hadefication/warden/internal/classify"
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/query"
-	"github.com/hadefication/warden/internal/secret"
-	"github.com/hadefication/warden/internal/store"
+	"github.com/webteractive/warden/internal/classify"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/query"
+	"github.com/webteractive/warden/internal/secret"
+	"github.com/webteractive/warden/internal/store"
 )
 
 // ErrSecretKey means the write was refused because the key, or the value

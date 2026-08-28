@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 func readSchema(t *testing.T, dir string) string {

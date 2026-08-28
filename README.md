@@ -19,7 +19,7 @@ Warden compiles to a single statically linked binary with no runtime dependencie
 so the installer just drops one file into place:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/hadefication/warden/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/webteractive/warden/main/install.sh | sh
 ```
 
 This downloads the latest release for your OS and architecture, verifies its
@@ -29,7 +29,7 @@ published for **macOS and Linux** on **amd64 and arm64**.
 Install somewhere else with `WARDEN_INSTALL_DIR`:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/hadefication/warden/main/install.sh \
+curl -fsSL https://raw.githubusercontent.com/webteractive/warden/main/install.sh \
   | WARDEN_INSTALL_DIR=/usr/local/bin sh
 ```
 
@@ -48,7 +48,7 @@ Requires Go 1.26+. From a clone:
 Or without cloning:
 
 ```sh
-go install github.com/hadefication/warden/cmd/warden@latest
+go install github.com/webteractive/warden/cmd/warden@latest
 ```
 
 ### Verifying the install

@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/hadefication/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/prompt"
 )
 
 // TestMain makes the fake prompter the default for every test in this package.

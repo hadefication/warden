@@ -1,7 +1,7 @@
 package keyring
 
 import (
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 // SecretTool is the Linux backend, over libsecret's secret-tool.

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hadefication/warden/internal/classify"
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/query"
+	"github.com/webteractive/warden/internal/classify"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/query"
 )
 
 // spy records what the confirmation prompt was asked, if it was asked at all.

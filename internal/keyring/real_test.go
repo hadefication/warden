@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 // Every other test here drives a Runner seam or the Fake, which means nothing

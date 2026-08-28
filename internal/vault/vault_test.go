@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hadefication/warden/internal/keyring"
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/keyring"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 var testNow = time.Date(2026, 8, 18, 12, 0, 0, 0, time.UTC)

@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/query"
-	"github.com/hadefication/warden/internal/write"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/query"
+	"github.com/webteractive/warden/internal/write"
 )
 
 // homeDir is where the vault lives. The vault is user-global by definition, so

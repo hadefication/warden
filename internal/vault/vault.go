@@ -13,9 +13,9 @@ import (
 
 	"golang.org/x/crypto/argon2"
 
-	"github.com/hadefication/warden/internal/keyring"
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/keyring"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 var (

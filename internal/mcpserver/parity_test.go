@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/hadefication/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/prompt"
 )
 
 // ToolNames is what internal/cli's parity test compares its command list

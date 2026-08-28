@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hadefication/warden/internal/keyring"
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/query"
+	"github.com/webteractive/warden/internal/keyring"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/query"
 )
 
 const vaultMarker = "vault-marker-8be40c17"

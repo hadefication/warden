@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hadefication/warden/internal/keyring"
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/keyring"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 // The end-to-end proof: a value sealed with a key minted into the real OS

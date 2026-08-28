@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/query"
-	"github.com/hadefication/warden/internal/vault"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/query"
+	"github.com/webteractive/warden/internal/vault"
 )
 
 // ErrDestinationSet means the destination already holds a value for the key, and

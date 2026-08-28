@@ -11,7 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hadefication/warden/internal/hook"
+	"github.com/webteractive/warden/internal/hook"
 )
 
 // GuardInput is where --guard reads the tool call from. Tests replace it;

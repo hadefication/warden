@@ -89,7 +89,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 // recorder captures what a backend would have executed.
@@ -260,7 +260,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 // The item's address in the OS keyring.
@@ -372,7 +372,7 @@ package keyring
 import (
 	"strings"
 
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 // Security is the macOS backend, over /usr/bin/security.
@@ -419,7 +419,7 @@ func (s Security) Delete() error {
 package keyring
 
 import (
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 // SecretTool is the Linux backend, over libsecret's secret-tool.
@@ -510,7 +510,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 func testKey() []byte { return bytes.Repeat([]byte{7}, 32) }
@@ -791,7 +791,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 // MaxTTL caps a temporary entry at 30 days.
@@ -937,7 +937,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 const (
@@ -1189,9 +1189,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hadefication/warden/internal/keyring"
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/keyring"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 var testNow = time.Date(2026, 8, 18, 12, 0, 0, 0, time.UTC)
@@ -1676,9 +1676,9 @@ import (
 
 	"golang.org/x/crypto/argon2"
 
-	"github.com/hadefication/warden/internal/keyring"
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/keyring"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 var (
@@ -2175,10 +2175,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hadefication/warden/internal/keyring"
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/secret"
-	"github.com/hadefication/warden/internal/vault"
+	"github.com/webteractive/warden/internal/keyring"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/secret"
+	"github.com/webteractive/warden/internal/vault"
 )
 
 var vaultNow = time.Date(2026, 8, 18, 12, 0, 0, 0, time.UTC)
@@ -2294,9 +2294,9 @@ package query
 import (
 	"time"
 
-	"github.com/hadefication/warden/internal/keyring"
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/vault"
+	"github.com/webteractive/warden/internal/keyring"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/vault"
 )
 
 // VaultKeyring and VaultNow are test seams, following the cli.SetPrompter
@@ -2399,9 +2399,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hadefication/warden/internal/keyring"
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/query"
+	"github.com/webteractive/warden/internal/keyring"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/query"
 )
 
 const vaultMarker = "vault-marker-8be40c17"
@@ -2875,9 +2875,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/query"
-	"github.com/hadefication/warden/internal/vault"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/query"
+	"github.com/webteractive/warden/internal/vault"
 )
 
 // ErrDestinationSet means the destination already holds a value for the key, and
@@ -3170,9 +3170,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hadefication/warden/internal/keyring"
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/query"
+	"github.com/webteractive/warden/internal/keyring"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/query"
 )
 
 const cliVaultMarker = "cli-vault-marker-52ad"
@@ -3441,9 +3441,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/query"
-	"github.com/hadefication/warden/internal/write"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/query"
+	"github.com/webteractive/warden/internal/write"
 )
 
 // homeDir is where the vault lives. The vault is user-global by definition, so
@@ -3845,15 +3845,15 @@ In `internal/cli/arch_test.go`, replace `TestSurfacePackagesDoNotImportStoreDire
 // touching a real keychain.
 func TestSurfacePackagesDoNotImportTheValueLayersDirectly(t *testing.T) {
 	forbidden := []string{
-		"github.com/hadefication/warden/internal/store",
-		"github.com/hadefication/warden/internal/vault",
-		"github.com/hadefication/warden/internal/keyring",
+		"github.com/webteractive/warden/internal/store",
+		"github.com/webteractive/warden/internal/vault",
+		"github.com/webteractive/warden/internal/keyring",
 	}
 
 	for _, pkg := range []string{
-		"github.com/hadefication/warden/internal/cli",
-		"github.com/hadefication/warden/internal/mcpserver",
-		"github.com/hadefication/warden/cmd/warden",
+		"github.com/webteractive/warden/internal/cli",
+		"github.com/webteractive/warden/internal/mcpserver",
+		"github.com/webteractive/warden/cmd/warden",
 	} {
 		out, err := exec.Command("go", "list", "-f", "{{join .Imports \"\\n\"}}", pkg).Output()
 		if err != nil {

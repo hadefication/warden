@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/hadefication/warden/internal/mcpserver"
+	"github.com/webteractive/warden/internal/mcpserver"
 )
 
 // commandNames lists every leaf command, descending one level into a family so

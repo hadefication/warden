@@ -2,7 +2,7 @@
 # warden installer.
 #
 # Default — download a prebuilt binary. No Go toolchain required:
-#   curl -fsSL https://raw.githubusercontent.com/hadefication/warden/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/webteractive/warden/main/install.sh | sh
 #
 # From a local checkout, build from source instead (requires Go):
 #   ./install.sh --source
@@ -10,7 +10,7 @@
 # Override the destination with WARDEN_INSTALL_DIR.
 set -eu
 
-REPO="hadefication/warden"
+REPO="webteractive/warden"
 BIN="warden"
 INSTALL_DIR="${WARDEN_INSTALL_DIR:-$HOME/.local/bin}"
 MODE="release"
@@ -47,7 +47,7 @@ if [ "$MODE" = "source" ]; then
 
   version="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
   mkdir -p "$INSTALL_DIR"
-  go build -ldflags "-s -w -X github.com/hadefication/warden/internal/mcpserver.version=$version" \
+  go build -ldflags "-s -w -X github.com/webteractive/warden/internal/mcpserver.version=$version" \
     -o "$INSTALL_DIR/$BIN" ./cmd/warden
 
   printf 'Built and installed %s %s to %s/%s\n' "$BIN" "$version" "$INSTALL_DIR" "$BIN"

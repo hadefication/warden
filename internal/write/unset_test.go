@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/hadefication/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/prompt"
 )
 
 func TestUnsetRemovesASetKeyAfterConfirmation(t *testing.T) {

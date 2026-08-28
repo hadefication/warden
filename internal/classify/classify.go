@@ -3,7 +3,7 @@ package classify
 import (
 	"strings"
 
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 // Classify decides a key's sensitivity. Precedence, first match wins:

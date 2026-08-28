@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hadefication/warden/internal/prompt"
-	"github.com/hadefication/warden/internal/query"
+	"github.com/webteractive/warden/internal/prompt"
+	"github.com/webteractive/warden/internal/query"
 )
 
 func project(t *testing.T, body string) string {

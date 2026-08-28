@@ -19,7 +19,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 // The item's address in the OS keyring.

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hadefication/warden/internal/classify"
+	"github.com/webteractive/warden/internal/classify"
 )
 
 // Severity ranks a problem. It exists so a caller can gate on findings without

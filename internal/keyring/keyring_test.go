@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 // recorder captures what a backend would have executed.

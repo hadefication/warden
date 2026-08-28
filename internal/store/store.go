@@ -9,7 +9,7 @@ package store
 import (
 	"errors"
 
-	"github.com/hadefication/warden/internal/secret"
+	"github.com/webteractive/warden/internal/secret"
 )
 
 // ErrNoFile means no backing file was found.
