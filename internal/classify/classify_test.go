@@ -48,7 +48,7 @@ func TestClassifyPrecedenceAndRules(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := Classify(tc.key, secret.Secret(tc.value), nil)
+			got := Classify(tc.key, secret.Secret(tc.value), nil, nil)
 			if got.Class != tc.want {
 				t.Errorf("Classify(%q) = %s (rule %q), want %s", tc.key, got.Class, got.Rule, tc.want)
 			}
@@ -66,7 +66,7 @@ func TestClassStrings(t *testing.T) {
 }
 
 func TestResultNeverCarriesTheValue(t *testing.T) {
-	r := Classify("STRIPE_KEY", secret.Secret("sk_live_canary"), nil)
+	r := Classify("STRIPE_KEY", secret.Secret("sk_live_canary"), nil, nil)
 	if r.Rule == "sk_live_canary" || r.Class.String() == "sk_live_canary" {
 		t.Error("Result must not embed the value")
 	}

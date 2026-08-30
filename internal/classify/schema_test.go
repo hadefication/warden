@@ -35,14 +35,14 @@ func TestSchemaOverridesBeatEveryHeuristic(t *testing.T) {
 	}
 
 	// Name pattern says *_KEY is secret; the schema says otherwise and wins.
-	got := Classify("MY_PUBLIC_KEY", secret.Secret("abc"), sch)
-	if got.Class != Public || got.Rule != "schema" {
+	got := Classify("MY_PUBLIC_KEY", secret.Secret("abc"), nil, sch)
+	if got.Class != Public || got.Rule != "project-schema" {
 		t.Errorf("MY_PUBLIC_KEY = %s (%s), want public (schema)", got.Class, got.Rule)
 	}
 
 	// Allowlist says APP_NAME is public; the schema says otherwise and wins.
-	got = Classify("APP_NAME", secret.Secret("Warden"), sch)
-	if got.Class != Secret || got.Rule != "schema" {
+	got = Classify("APP_NAME", secret.Secret("Warden"), nil, sch)
+	if got.Class != Secret || got.Rule != "project-schema" {
 		t.Errorf("APP_NAME = %s (%s), want secret (schema)", got.Class, got.Rule)
 	}
 }
@@ -52,7 +52,7 @@ func TestSchemaDoesNotOverrideValueShape(t *testing.T) {
 	// live credential. Shape detection is the one thing a schema cannot waive.
 	dir := writeSchema(t, "TOKEN_MODE=public\n")
 	sch, _ := LoadSchema(dir)
-	got := Classify("TOKEN_MODE", secret.Secret("sk_live_abc123"), sch)
+	got := Classify("TOKEN_MODE", secret.Secret("sk_live_abc123"), nil, sch)
 	if got.Class != Secret {
 		t.Errorf("got %s (%s), want secret — shape must outrank a schema override", got.Class, got.Rule)
 	}
@@ -61,10 +61,10 @@ func TestSchemaDoesNotOverrideValueShape(t *testing.T) {
 func TestUnlistedKeysFallThroughToHeuristics(t *testing.T) {
 	dir := writeSchema(t, "SOMETHING=public\n")
 	sch, _ := LoadSchema(dir)
-	if got := Classify("DB_PASSWORD", secret.Secret("x"), sch); got.Class != Secret {
+	if got := Classify("DB_PASSWORD", secret.Secret("x"), nil, sch); got.Class != Secret {
 		t.Errorf("DB_PASSWORD = %s, want secret", got.Class)
 	}
-	if got := Classify("APP_NAME", secret.Secret("x"), sch); got.Class != Public {
+	if got := Classify("APP_NAME", secret.Secret("x"), nil, sch); got.Class != Public {
 		t.Errorf("APP_NAME = %s, want public", got.Class)
 	}
 }

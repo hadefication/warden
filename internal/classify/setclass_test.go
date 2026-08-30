@@ -85,8 +85,8 @@ func TestSetClassRoundTripsThroughClassify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := Classify("DB_PASSWORD", secret.Secret("plain"), sch)
-	if got.Class != Public || got.Rule != "schema" {
+	got := Classify("DB_PASSWORD", secret.Secret("plain"), nil, sch)
+	if got.Class != Public || got.Rule != "project-schema" {
 		t.Errorf("got %s (%s), want public (schema)", got.Class, got.Rule)
 	}
 }

@@ -1,6 +1,6 @@
 module github.com/webteractive/warden
 
-go 1.26.4
+go 1.26.7
 
 require (
 	github.com/modelcontextprotocol/go-sdk v1.7.0

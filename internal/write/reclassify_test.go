@@ -31,7 +31,7 @@ func (s *spy) prompter(err error) prompt.Prompter {
 
 func schemaBody(t *testing.T, dir string) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join(dir, ".env.schema"))
+	b, err := os.ReadFile(classify.UserSchemaPath(dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,8 +40,8 @@ func schemaBody(t *testing.T, dir string) string {
 
 func noSchema(t *testing.T, dir string) {
 	t.Helper()
-	if _, err := os.Stat(filepath.Join(dir, ".env.schema")); !os.IsNotExist(err) {
-		t.Fatalf("a refusal must not create .env.schema (stat err = %v)", err)
+	if _, err := os.Stat(classify.UserSchemaPath(dir)); !os.IsNotExist(err) {
+		t.Fatalf("a refusal must not create the user schema (stat err = %v)", err)
 	}
 }
 
@@ -51,8 +51,21 @@ func TestReclassifyToPublicRecordsTheOverride(t *testing.T) {
 	if err := open(t, dir, s.prompter(nil)).Reclassify("FOO_KEY", classify.Public); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(schemaBody(t, dir), "FOO_KEY=public") {
+	if !strings.Contains(schemaBody(t, dir), `"FOO_KEY": "public"`) {
 		t.Errorf("schema = %q, want the override recorded", schemaBody(t, dir))
+	}
+}
+
+func TestReclassifyWritesOnlyTheCentralRegistry(t *testing.T) {
+	dir := project(t, "FOO_KEY=plain\n")
+	if err := open(t, dir, (&spy{}).prompter(nil)).Reclassify("FOO_KEY", classify.Public); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".env.schema")); !os.IsNotExist(err) {
+		t.Errorf("reclassify created or touched .env.schema (stat err = %v)", err)
+	}
+	if !strings.Contains(schemaBody(t, dir), "FOO_KEY") {
+		t.Errorf("central registry does not contain the override: %q", schemaBody(t, dir))
 	}
 }
 
@@ -86,8 +99,21 @@ func TestReclassifyToSecretAsksButNeedsNoRetype(t *testing.T) {
 	if s.retyped {
 		t.Error("--set secret must not demand retyping — it loosens nothing")
 	}
-	if !strings.Contains(schemaBody(t, dir), "MODE=secret") {
+	if !strings.Contains(schemaBody(t, dir), `"MODE": "secret"`) {
 		t.Errorf("schema = %q", schemaBody(t, dir))
+	}
+}
+
+func TestReclassifyPromptNamesTheCentralRegistry(t *testing.T) {
+	dir := project(t, "FOO_KEY=plain\n")
+	var promptedPath string
+	p := prompt.Fake{OnConfirm: func(_, _, path string, _ bool) { promptedPath = path }}
+	w := open(t, dir, p)
+	if err := w.Reclassify("FOO_KEY", classify.Public); err != nil {
+		t.Fatal(err)
+	}
+	if promptedPath != classify.UserSchemaPath(dir) {
+		t.Errorf("prompt path = %q, want %q", promptedPath, classify.UserSchemaPath(dir))
 	}
 }
 

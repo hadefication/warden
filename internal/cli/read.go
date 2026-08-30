@@ -70,7 +70,8 @@ func addReadCommands(root *cobra.Command, out io.Writer) {
 		Short: "explain why a key is treated as secret or public",
 		Long: "Explain a key's classification, or record an override for it.\n\n" +
 			"Without --set this only reports: warden classify APP_URL\n" +
-			"With --set it records the class in .env.schema, after you authorise it\n" +
+			"With --set it records a project-scoped class in ~/.warden/schema, after\n" +
+			"you authorise it\n" +
 			"in a prompt this process owns. Marking a key public means warden will\n" +
 			"print its value, so that direction asks you to retype the key name.\n" +
 			"Value shape still wins: a recognised credential cannot be made public.",
@@ -97,7 +98,7 @@ func addReadCommands(root *cobra.Command, out io.Writer) {
 		},
 	}
 	classifyCmd.Flags().String("set", "",
-		`record an explicit class in .env.schema: "public" or "secret" (asks for confirmation)`)
+		`record a project class in ~/.warden/schema: "public" or "secret" (asks for confirmation)`)
 	root.AddCommand(classifyCmd)
 
 	root.AddCommand(&cobra.Command{

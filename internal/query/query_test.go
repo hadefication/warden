@@ -173,10 +173,68 @@ func TestSchemaIsLoadedFromTheProjectDirectory(t *testing.T) {
 		".env.schema": "MY_PUBLIC_KEY=public\n",
 	})
 	q := openProject(t, dir)
-	if got := q.Classify("MY_PUBLIC_KEY"); got.Class != classify.Public {
+	if got := q.Classify("MY_PUBLIC_KEY"); got.Class != classify.Public || got.Rule != "project-schema" {
 		t.Errorf("got %s (%s), want public via schema", got.Class, got.Rule)
 	}
 	if _, err := q.Get("MY_PUBLIC_KEY"); err != nil {
 		t.Errorf("a schema-public key must be readable: %v", err)
+	}
+}
+
+func TestCentralSchemaIsLoadedForTheResolvedProjectAndWins(t *testing.T) {
+	dir := project(t, map[string]string{
+		".env":        "MY_PUBLIC_KEY=plain\nAPP_NAME=Warden\n",
+		".env.schema": "MY_PUBLIC_KEY=secret\nAPP_NAME=public\n",
+	})
+	if _, err := classify.SetUserClass(dir, dir, "MY_PUBLIC_KEY", classify.Public); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := classify.SetUserClass(dir, dir, "APP_NAME", classify.Secret); err != nil {
+		t.Fatal(err)
+	}
+
+	q := openProject(t, dir)
+	if got := q.Classify("MY_PUBLIC_KEY"); got.Class != classify.Public || got.Rule != "user-schema" {
+		t.Errorf("MY_PUBLIC_KEY = %s (%s), want public (user-schema)", got.Class, got.Rule)
+	}
+	if got := q.Classify("APP_NAME"); got.Class != classify.Secret || got.Rule != "user-schema" {
+		t.Errorf("APP_NAME = %s (%s), want secret (user-schema)", got.Class, got.Rule)
+	}
+	if got, err := q.Get("MY_PUBLIC_KEY"); err != nil || got != "plain" {
+		t.Errorf("Get(MY_PUBLIC_KEY) = %q, %v; want plain, nil", got, err)
+	}
+}
+
+func TestCentralSchemaUsesTheDirectoryContainingTheResolvedDotenv(t *testing.T) {
+	home := t.TempDir()
+	root := project(t, map[string]string{".env": "FOO_KEY=plain\n"})
+	nested := filepath.Join(root, "one", "two")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := classify.SetUserClass(home, root, "FOO_KEY", classify.Public); err != nil {
+		t.Fatal(err)
+	}
+
+	q, err := Open(Scope{Dir: nested, Home: home})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := q.Classify("FOO_KEY"); got.Class != classify.Public || got.Rule != "user-schema" {
+		t.Errorf("FOO_KEY = %s (%s), want public (user-schema)", got.Class, got.Rule)
+	}
+}
+
+func TestGlobalScopeNeverLoadsTheCentralSchema(t *testing.T) {
+	home := project(t, map[string]string{".secrets": "GH_TOKEN=plain\n"})
+	if _, err := classify.SetUserClass(home, home, "GH_TOKEN", classify.Public); err != nil {
+		t.Fatal(err)
+	}
+	q, err := Open(Scope{Global: true, Dir: home, Home: home})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := q.Classify("GH_TOKEN"); got.Class != classify.Secret || got.Rule == "user-schema" {
+		t.Errorf("GH_TOKEN = %s (%s), want secret without a user override", got.Class, got.Rule)
 	}
 }

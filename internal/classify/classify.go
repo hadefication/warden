@@ -11,19 +11,25 @@ import (
 //  1. the value's shape — a recognisable credential format. This is
 //     unwaivable, and deliberately outranks the schema: an override is a way to
 //     fix a heuristic miss, not a way to unmask a live API key.
-//  2. an explicit .env.schema override
-//  3. the public allowlist
-//  4. secret name patterns
-//  5. secret by default — fail closed
+//  2. an explicit entry for this project in ~/.warden/schema
+//  3. a legacy .env.schema override
+//  4. the public allowlist
+//  5. secret name patterns
+//  6. secret by default — fail closed
 //
-// sch may be nil when the project has no override file.
-func Classify(key string, value secret.Secret, sch *Schema) Result {
+// Either schema may be nil when its source has no override for this project.
+func Classify(key string, value secret.Secret, userSchema, projectSchema *Schema) Result {
 	if rule, ok := ShapeRule(value); ok {
 		return Result{Class: Secret, Rule: rule}
 	}
-	if sch != nil {
-		if class, ok := sch.Lookup(key); ok {
-			return Result{Class: class, Rule: "schema"}
+	if userSchema != nil {
+		if class, ok := userSchema.Lookup(key); ok {
+			return Result{Class: class, Rule: "user-schema"}
+		}
+	}
+	if projectSchema != nil {
+		if class, ok := projectSchema.Lookup(key); ok {
+			return Result{Class: class, Rule: "project-schema"}
 		}
 	}
 	if strings.HasPrefix(key, "VITE_") {

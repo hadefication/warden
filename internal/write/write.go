@@ -40,15 +40,18 @@ var ErrAbsent = errors.New("key is not present")
 
 // W is an open, writable view of one store.
 type W struct {
-	st     store.Store
-	sch    *classify.Schema
-	p      prompt.Prompter
-	global bool
+	st            store.Store
+	userSchema    *classify.Schema
+	projectSchema *classify.Schema
+	p             prompt.Prompter
+	global        bool
+	home          string
+	projectDir    string
 }
 
 // Open resolves the scope and attaches the prompter used for secret writes.
 func Open(sc query.Scope, p prompt.Prompter) (*W, error) {
-	w := &W{p: p, global: sc.Global}
+	w := &W{p: p, global: sc.Global, home: sc.Home}
 	var err error
 	if sc.Global {
 		w.st, err = store.OpenSecrets(sc.Home)
@@ -59,7 +62,16 @@ func Open(sc query.Scope, p prompt.Prompter) (*W, error) {
 		return nil, err
 	}
 	if !sc.Global {
-		w.sch, err = classify.LoadSchema(filepath.Dir(w.st.Path()))
+		resolvedProjectDir := filepath.Dir(w.st.Path())
+		w.projectDir, err = classify.CanonicalProjectRoot(resolvedProjectDir)
+		if err != nil {
+			return nil, err
+		}
+		w.userSchema, err = classify.LoadUserSchema(sc.Home, w.projectDir)
+		if err != nil {
+			return nil, err
+		}
+		w.projectSchema, err = classify.LoadSchema(resolvedProjectDir)
 		if err != nil {
 			return nil, err
 		}
@@ -70,14 +82,14 @@ func Open(sc query.Scope, p prompt.Prompter) (*W, error) {
 // Path is the backing file.
 func (w *W) Path() string { return w.st.Path() }
 
-// SchemaPath is where classification overrides for this store live, whether or
-// not the file exists yet.
-//
-// Only meaningful in project scope. Global scope would name ~/.env.schema, which
-// nothing reads — Reclassify refuses that scope before it gets here.
+// SchemaPath is the central registry that holds project-scoped classification
+// overrides. Reclassify refuses global scope before this path is used.
 func (w *W) SchemaPath() string {
-	return filepath.Join(filepath.Dir(w.st.Path()), classify.SchemaFilename)
+	return classify.UserSchemaPath(w.home)
 }
+
+// ProjectPath is the resolved project directory whose registry entry changes.
+func (w *W) ProjectPath() string { return w.projectDir }
 
 // SetPublic writes a value directly. It refuses if the key is secret, and also
 // if the incoming value itself looks like a credential — an innocent key name
@@ -86,7 +98,7 @@ func (w *W) SetPublic(key, value string) error {
 	if w.classOf(key).Class == classify.Secret {
 		return fmt.Errorf("%s: %w", key, ErrSecretKey)
 	}
-	if classify.Classify(key, secret.Secret(value), w.sch).Class == classify.Secret {
+	if classify.Classify(key, secret.Secret(value), w.userSchema, w.projectSchema).Class == classify.Secret {
 		return fmt.Errorf("%s: %w (the value looks like a credential)", key, ErrSecretKey)
 	}
 	return w.st.Set(key, value)
@@ -138,9 +150,9 @@ func (w *W) Clear(key string) error {
 	return w.st.Set(key, "")
 }
 
-// Reclassify records an explicit class for key in the project's .env.schema,
-// once the user authorises it through the prompt. Nothing is written if they
-// decline.
+// Reclassify records an explicit class for key in the project's entry in the
+// central user schema, once the user authorises it through the prompt. Nothing
+// is written if they decline.
 //
 // Two refusals land before the prompt, so the user is never made to authorise
 // something that was going to fail anyway:
@@ -162,28 +174,26 @@ func (w *W) Reclassify(key string, to classify.Class) error {
 		}
 	}
 
-	dir := filepath.Dir(w.st.Path())
-
 	// Only the loosening direction demands the key be retyped.
 	if err := w.p.Confirm(to.String(), key, w.SchemaPath(), to == classify.Public); err != nil {
 		return err
 	}
-	if _, err := classify.SetClass(dir, key, to); err != nil {
+	if _, err := classify.SetUserClass(w.home, w.projectDir, key, to); err != nil {
 		return err
 	}
 
 	// Reload so this W stops serving the pre-write classification.
-	sch, err := classify.LoadSchema(dir)
+	sch, err := classify.LoadUserSchema(w.home, w.projectDir)
 	if err != nil {
 		return err
 	}
-	w.sch = sch
+	w.userSchema = sch
 	return nil
 }
 
 func (w *W) classOf(key string) classify.Result {
 	v, _ := w.st.Get(key)
-	return classify.Classify(key, v, w.sch)
+	return classify.Classify(key, v, w.userSchema, w.projectSchema)
 }
 
 // has reports whether the destination store already holds a usable value for

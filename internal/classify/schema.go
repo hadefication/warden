@@ -1,18 +1,16 @@
 package classify
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/webteractive/warden/internal/envfile"
 )
 
-// SchemaFilename is the per-project override file.
+// SchemaFilename is the legacy per-project override file.
 const SchemaFilename = ".env.schema"
 
-// Schema holds explicit per-key classifications, for the cases where the
-// built-in heuristics get it wrong. Most projects will never need one.
+// Schema holds explicit per-key classifications from either schema layer.
 //
 // Format is one KEY=class per line, class being "public" or "secret":
 //
@@ -36,19 +34,11 @@ func LoadSchema(dir string) (*Schema, error) {
 		return nil, err
 	}
 
-	s := &Schema{entries: map[string]Class{}}
+	raw := make(map[string]string, len(f.Keys()))
 	for _, key := range f.Keys() {
-		raw, _ := f.Get(key)
-		switch raw {
-		case "public":
-			s.entries[key] = Public
-		case "secret":
-			s.entries[key] = Secret
-		default:
-			return nil, fmt.Errorf("%s: %s has class %q, want \"public\" or \"secret\"", path, key, raw)
-		}
+		raw[key], _ = f.Get(key)
 	}
-	return s, nil
+	return schemaFromStrings(path, raw)
 }
 
 // schemaHeader opens a schema warden creates itself, so the file explains its
@@ -59,7 +49,7 @@ const schemaHeader = "# warden classification overrides — one KEY=public|secre
 // records class names and never values, and is commonly committed.
 const schemaMode = 0o644
 
-// SetClass records an explicit classification for key in dir/.env.schema and
+// SetClass records an explicit classification in the legacy dir/.env.schema and
 // returns the path written. A missing file is created with a header; an existing
 // one keeps its comments, its layout, and every entry SetClass did not touch.
 //

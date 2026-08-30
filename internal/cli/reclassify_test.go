@@ -7,12 +7,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/webteractive/warden/internal/classify"
 	"github.com/webteractive/warden/internal/prompt"
 )
 
-func readSchemaFile(t *testing.T, dir string) string {
+func reclassifyHome(t *testing.T) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join(dir, ".env.schema"))
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	return home
+}
+
+func readSchemaFile(t *testing.T, home string) string {
+	t.Helper()
+	b, err := os.ReadFile(classify.UserSchemaPath(home))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,6 +28,7 @@ func readSchemaFile(t *testing.T, dir string) string {
 }
 
 func TestClassifySetPublicRecordsTheOverrideAndSaysWhatChanged(t *testing.T) {
+	home := reclassifyHome(t)
 	withPrompter(t, prompt.Fake{})
 	dir := project(t, map[string]string{".env": "FOO_KEY=plain\n"})
 
@@ -27,10 +36,21 @@ func TestClassifySetPublicRecordsTheOverrideAndSaysWhatChanged(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d, err = %q", code, errw)
 	}
-	if !strings.Contains(readSchemaFile(t, dir), "FOO_KEY=public") {
-		t.Errorf("schema = %q", readSchemaFile(t, dir))
+	schema := readSchemaFile(t, home)
+	if !strings.Contains(schema, `"FOO_KEY": "public"`) {
+		t.Errorf("schema = %q", schema)
 	}
-	for _, want := range []string{"ok:", "FOO_KEY", "public"} {
+	if strings.Contains(schema, "plain") {
+		t.Errorf("the schema recorded an environment value: %q", schema)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".env.schema")); !os.IsNotExist(err) {
+		t.Errorf("classify --set must not create .env.schema (stat err = %v)", err)
+	}
+	canonical, err := classify.CanonicalProjectRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"ok:", "FOO_KEY", "public", home, canonical} {
 		if !strings.Contains(out, want) {
 			t.Errorf("confirmation missing %q: %q", want, out)
 		}
@@ -40,6 +60,7 @@ func TestClassifySetPublicRecordsTheOverrideAndSaysWhatChanged(t *testing.T) {
 func TestClassifySetPublicWarnsThatTheValueIsNowReadable(t *testing.T) {
 	// The whole consequence of the command is that `warden get` starts working on
 	// this key. Saying so is the difference between a confirmation and a surprise.
+	reclassifyHome(t)
 	withPrompter(t, prompt.Fake{})
 	dir := project(t, map[string]string{".env": "FOO_KEY=plain\n"})
 
@@ -50,6 +71,7 @@ func TestClassifySetPublicWarnsThatTheValueIsNowReadable(t *testing.T) {
 }
 
 func TestClassifySetSecretRecordsTheOverride(t *testing.T) {
+	home := reclassifyHome(t)
 	withPrompter(t, prompt.Fake{})
 	dir := project(t, map[string]string{".env": "APP_NAME=Warden\n"})
 
@@ -57,8 +79,8 @@ func TestClassifySetSecretRecordsTheOverride(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d, err = %q", code, errw)
 	}
-	if !strings.Contains(readSchemaFile(t, dir), "APP_NAME=secret") {
-		t.Errorf("schema = %q", readSchemaFile(t, dir))
+	if !strings.Contains(readSchemaFile(t, home), `"APP_NAME": "secret"`) {
+		t.Errorf("schema = %q", readSchemaFile(t, home))
 	}
 }
 
@@ -77,6 +99,7 @@ func TestClassifyWithoutSetStillOnlyExplains(t *testing.T) {
 }
 
 func TestClassifySetRejectsAnUnknownClass(t *testing.T) {
+	home := reclassifyHome(t)
 	dir := project(t, map[string]string{".env": "FOO_KEY=plain\n"})
 	_, errw, code := run(t, "classify", "FOO_KEY", "--set", "publik", "--project", dir)
 	if code == 0 {
@@ -88,11 +111,15 @@ func TestClassifySetRejectsAnUnknownClass(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, ".env.schema")); !os.IsNotExist(err) {
 		t.Error("a rejected class must not write a schema")
 	}
+	if _, err := os.Stat(classify.UserSchemaPath(home)); !os.IsNotExist(err) {
+		t.Error("a rejected class must not write the central schema")
+	}
 }
 
 func TestClassifySetRejectsAnEmptyClass(t *testing.T) {
 	// --set="" is an explicit request with a bad argument, not an absent flag.
 	// Falling through to the read path would silently do something else.
+	reclassifyHome(t)
 	dir := project(t, map[string]string{".env": "FOO_KEY=plain\n"})
 	_, errw, code := run(t, "classify", "FOO_KEY", "--set", "", "--project", dir)
 	if code == 0 {
@@ -121,9 +148,13 @@ func TestClassifySetIsRefusedInGlobalScope(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(home, ".env.schema")); !os.IsNotExist(err) {
 		t.Error("nothing should have been written")
 	}
+	if _, err := os.Stat(classify.UserSchemaPath(home)); !os.IsNotExist(err) {
+		t.Error("global scope must not write the central schema")
+	}
 }
 
 func TestClassifySetPublicIsRefusedForCredentialShapedValues(t *testing.T) {
+	home := reclassifyHome(t)
 	withPrompter(t, prompt.Fake{})
 	dir := project(t, map[string]string{".env": "MODE=sk_live_abc123\n"})
 
@@ -137,9 +168,13 @@ func TestClassifySetPublicIsRefusedForCredentialShapedValues(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, ".env.schema")); !os.IsNotExist(err) {
 		t.Error("nothing should have been written")
 	}
+	if _, err := os.Stat(classify.UserSchemaPath(home)); !os.IsNotExist(err) {
+		t.Error("nothing should have been written centrally")
+	}
 }
 
 func TestDeclinedReclassificationExitsThreeAndWritesNothing(t *testing.T) {
+	home := reclassifyHome(t)
 	withPrompter(t, prompt.Fake{ConfirmErr: prompt.ErrCancelled})
 	dir := project(t, map[string]string{".env": "FOO_KEY=plain\n"})
 
@@ -150,9 +185,13 @@ func TestDeclinedReclassificationExitsThreeAndWritesNothing(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, ".env.schema")); !os.IsNotExist(err) {
 		t.Error("a declined confirmation must not write")
 	}
+	if _, err := os.Stat(classify.UserSchemaPath(home)); !os.IsNotExist(err) {
+		t.Error("a declined confirmation must not write centrally")
+	}
 }
 
 func TestClassifySetHonoursTheJSONFlag(t *testing.T) {
+	home := reclassifyHome(t)
 	withPrompter(t, prompt.Fake{})
 	dir := project(t, map[string]string{".env": "FOO_KEY=plain\n"})
 
@@ -170,10 +209,21 @@ func TestClassifySetHonoursTheJSONFlag(t *testing.T) {
 	if got["path"] == "" {
 		t.Error("the payload should name the file that changed")
 	}
+	if got["path"] != classify.UserSchemaPath(home) {
+		t.Errorf("path = %q, want %q", got["path"], classify.UserSchemaPath(home))
+	}
+	canonical, err := classify.CanonicalProjectRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["project"] != canonical {
+		t.Errorf("project = %q, want %q", got["project"], canonical)
+	}
 }
 
 func TestReclassifyThenGetActuallyReadsTheValue(t *testing.T) {
 	// End to end: the override has to change what a later, separate command does.
+	reclassifyHome(t)
 	withPrompter(t, prompt.Fake{})
 	dir := project(t, map[string]string{".env": "FOO_KEY=plain-not-a-secret\n"})
 
@@ -186,5 +236,12 @@ func TestReclassifyThenGetActuallyReadsTheValue(t *testing.T) {
 	}
 	if strings.TrimSpace(out) != "plain-not-a-secret" {
 		t.Errorf("get returned %q", out)
+	}
+	explained, errw, code := run(t, "classify", "FOO_KEY", "--project", dir)
+	if code != 0 {
+		t.Fatalf("classify after reclassify: code = %d, err = %q", code, errw)
+	}
+	if !strings.Contains(explained, "user-schema") {
+		t.Errorf("classify did not name the central layer: %q", explained)
 	}
 }

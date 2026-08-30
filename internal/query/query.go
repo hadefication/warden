@@ -37,13 +37,14 @@ type Scope struct {
 
 // Q is an open, read-only view of one store.
 type Q struct {
-	st     store.Store
-	sch    *classify.Schema
-	global bool
-	dir    string
+	st            store.Store
+	userSchema    *classify.Schema
+	projectSchema *classify.Schema
+	global        bool
+	dir           string
 }
 
-// Open resolves the scope and loads any .env.schema beside the store.
+// Open resolves the scope and loads the central and legacy project schemas.
 func Open(sc Scope) (*Q, error) {
 	q := &Q{global: sc.Global, dir: sc.Dir}
 	var err error
@@ -55,9 +56,15 @@ func Open(sc Scope) (*Q, error) {
 	if err != nil {
 		return nil, err
 	}
-	// The schema lives beside the file it describes, not beside the cwd.
+	// Both schema layers identify the project by the directory containing the
+	// resolved .env, not by the caller's cwd.
 	if !sc.Global {
-		q.sch, err = classify.LoadSchema(filepath.Dir(q.st.Path()))
+		projectDir := filepath.Dir(q.st.Path())
+		q.userSchema, err = classify.LoadUserSchema(sc.Home, projectDir)
+		if err != nil {
+			return nil, err
+		}
+		q.projectSchema, err = classify.LoadSchema(projectDir)
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +98,7 @@ func (q *Q) List() []Row {
 		v, _ := q.st.Get(k)
 		rows = append(rows, Row{
 			Key:   k,
-			Class: classify.Classify(k, v, q.sch).Class,
+			Class: classify.Classify(k, v, q.userSchema, q.projectSchema).Class,
 			Set:   v.IsSet(),
 		})
 	}
@@ -101,7 +108,7 @@ func (q *Q) List() []Row {
 // Classify explains a key's sensitivity and which rule decided it.
 func (q *Q) Classify(key string) classify.Result {
 	v, _ := q.st.Get(key)
-	return classify.Classify(key, v, q.sch)
+	return classify.Classify(key, v, q.userSchema, q.projectSchema)
 }
 
 // Get returns a value, but only for a public key. The error deliberately
@@ -111,7 +118,7 @@ func (q *Q) Get(key string) (string, error) {
 	if !ok || !v.IsSet() {
 		return "", fmt.Errorf("%s: %w", key, ErrNotSet)
 	}
-	if classify.Classify(key, v, q.sch).Class == classify.Secret {
+	if classify.Classify(key, v, q.userSchema, q.projectSchema).Class == classify.Secret {
 		return "", fmt.Errorf("%s: %w", key, ErrSecret)
 	}
 	return v.Expose(), nil

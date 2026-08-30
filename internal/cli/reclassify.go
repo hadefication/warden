@@ -13,8 +13,8 @@ import (
 	"github.com/webteractive/warden/internal/write"
 )
 
-// parseClass maps the --set argument onto a class. The two spellings match what
-// .env.schema itself accepts, so what the user types is what lands in the file.
+// parseClass maps the --set argument onto a class. The two spellings match both
+// schema formats, so what the user types is what lands in the registry.
 func parseClass(s string) (classify.Class, error) {
 	switch s {
 	case "public":
@@ -60,7 +60,7 @@ func runReclassify(cmd *cobra.Command, out io.Writer, key, class string) error {
 
 	if jsonFlag(cmd) {
 		return json.NewEncoder(out).Encode(map[string]string{
-			"key": key, "class": to.String(), "path": w.SchemaPath(),
+			"key": key, "class": to.String(), "path": w.SchemaPath(), "project": w.ProjectPath(),
 		})
 	}
 	// Say what the change enables. For public that is the whole consequence, and
@@ -69,6 +69,7 @@ func runReclassify(cmd *cobra.Command, out io.Writer, key, class string) error {
 	if to == classify.Secret {
 		consequence = fmt.Sprintf("warden get %s is now refused", key)
 	}
-	fmt.Fprintf(out, "ok: %s = %s in %s — %s\n", key, to, w.SchemaPath(), consequence)
+	fmt.Fprintf(out, "ok: %s = %s for %s in %s — %s\n",
+		key, to, w.ProjectPath(), w.SchemaPath(), consequence)
 	return nil
 }

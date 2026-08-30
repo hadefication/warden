@@ -307,29 +307,40 @@ A key is secret unless proven otherwise. Precedence, first match wins:
 
 1. **Value shape** — `sk_live_`, `ghp_`, `AKIA`, PEM blocks, URLs carrying
    `user:pass@`. Unwaivable: a schema cannot mark a live credential public.
-2. **`.env.schema` override** — optional per-project `KEY=public|secret`.
-3. **Public allowlist** — framework keys like `APP_NAME`, `DB_HOST`,
+2. **User schema** — the matching project and key in `~/.warden/schema`.
+3. **Legacy project schema** — an existing `.env.schema` beside `.env`.
+4. **Public allowlist** — framework keys like `APP_NAME`, `DB_HOST`,
    `MAIL_FROM_NAME`, and everything `VITE_*` (those ship to browsers).
-4. **Secret name patterns** — `*_KEY`, `*SECRET*`, `*TOKEN*`, `*PASSWORD*`, `*_DSN`, …
-5. **Default: secret.**
+5. **Secret name patterns** — `*_KEY`, `*SECRET*`, `*TOKEN*`, `*PASSWORD*`, `*_DSN`, …
+6. **Default: secret.**
 
-Run `warden classify <KEY>` to see which rule fired.
+Run `warden classify <KEY>` to see which layer or rule fired.
 
 ### Overriding a classification
 
-Either edit `.env.schema` beside your `.env` by hand:
-
-```
-MY_PUBLIC_KEY=public
-INTERNAL_MODE=secret
-```
-
-…or let warden write it, which is the same file with a confirmation attached:
+`classify --set` records an override for the current project in the central
+`~/.warden/schema` registry:
 
 ```sh
 warden classify MY_PUBLIC_KEY --set public
 warden classify INTERNAL_MODE --set secret
 ```
+
+The registry is JSON keyed first by the canonical project root, then by key:
+
+```json
+{
+  "/Users/example/code/shop": {
+    "INTERNAL_MODE": "secret",
+    "MY_PUBLIC_KEY": "public"
+  }
+}
+```
+
+It contains class names and project paths, never environment values. Existing
+`.env.schema` files are still read as a compatibility fallback, but warden no
+longer creates or edits them. A central entry wins when both files name the same
+key.
 
 The two directions are not equally dangerous, so they are not equally easy.
 Marking a key **public** is the only operation that turns a value warden refuses

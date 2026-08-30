@@ -16,6 +16,7 @@ func TestDecideOnFileReads(t *testing.T) {
 		{"writing .env", "Write", "/p/.env", true},
 		{"the example file is meant to be read", "Read", "/p/.env.example", false},
 		{"the schema file is meant to be read", "Read", "/p/.env.schema", false},
+		{"the central schema is meant to be read", "Read", "/Users/x/.warden/schema", false},
 		{"an unrelated file", "Read", "/p/README.md", false},
 		{"a file merely named like one", "Read", "/p/envy.md", false},
 	} {
@@ -50,6 +51,7 @@ func TestDecideOnShellCommands(t *testing.T) {
 		{"warden itself reads these files; that is the point", "warden list", false},
 		{"warden with a file flag", "warden list --file .env.staging", false},
 		{"the example file", "cat .env.example", false},
+		{"the central schema", "cat ~/.warden/schema", false},
 		{"an unrelated grep", "grep -r FOO src/", false},
 		{"naming a path is not reading it", `echo "$HOME/.secrets"`, false},
 		{"an unrelated command", "ls -la", false},
