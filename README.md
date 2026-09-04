@@ -73,6 +73,10 @@ warden doctor --strict          # same, but exit 1 when there are problems
 warden refs                     # keys the code reads that .env does not set
 warden set APP_NAME Warden      # public keys, written directly
 warden set --secret DB_PASSWORD # prompts you; the caller never sees the value
+warden set --secret K --from-file ./creds.txt   # warden opens the file itself
+warden set --secret K --generate                # warden mints it; nobody learns it
+warden set --public CF_GROUP_ID abc123          # classify and set, for a new key
+warden set --exposed CF_API_TOKEN abc123        # value is already out; record that
 warden unset OLD_TOKEN          # remove a key, after you authorise it
 warden clear OLD_TOKEN          # empty it, keeping the declaration
 warden classify FOO --set public  # records an override, after you authorise it
@@ -88,6 +92,101 @@ Flags: `--global` targets `~/.secrets` · `--project <dir>` names the project ·
 
 **Set** means present *and* non-empty. `KEY=` counts as declared-but-unset, and
 `warden has KEY` exits 1 for it.
+
+### Where a secret's value comes from
+
+`--secret` says the value must not appear on a command line. It does not say
+where the value comes from, and that is the choice that decides what warden can
+actually promise:
+
+| Channel | What the caller handles | Promise |
+|---------|------------------------|---------|
+| `--secret` (prompt) | nothing | warden controls the channel end to end |
+| `--secret --from-file <path>` | a path | warden opens the file itself |
+| `--secret --generate` | nothing | warden mints the value; nobody learns it |
+| `--secret` with piped stdin | the value | **none** — see below |
+
+The first three are structural: there is no point at which the caller could
+read the value, whatever it intends. A pipe is not. `openssl rand -hex 32 |
+warden set --secret K` is perfectly safe when you type it, and gives warden
+nothing to stand behind when an agent types it — whoever built the pipeline had
+the value before warden did. It is supported because your terminal is yours, and
+the confirmation line names the channel so a reader can tell the cases apart:
+
+Only an actual pipe counts. `warden set --secret K < file` prompts as usual,
+because a script invoked as `./deploy.sh < input` hands every command it runs a
+redirected stdin, and warden reading that would store the script's input as your
+credential without asking. Use `--from-file`, which cannot happen by accident.
+
+```
+ok: K set (secret) in .env                  ← prompt
+ok: K set (secret, from creds.txt) in .env  ← file
+ok: K set (secret, generated) in .env       ← generated
+ok: K set (secret, from stdin) in .env      ← caller-supplied
+```
+
+`--generate` is the answer for a credential that has leaked. Rotating by hand
+means the new value passes through whatever just leaked the old one; generating
+it means the replacement is one nobody has seen.
+
+Multi-line values work on every channel — a PEM block or a service-account JSON
+is most of the reason `--from-file` is worth having:
+
+```sh
+warden set --secret TLS_KEY --from-file ./key.pem
+```
+
+The value is stored escaped on a single line, `TLS_KEY="-----BEGIN…\nMIIC…"`,
+which is the form dotenv loaders already read. warden's own file stays one
+assignment per line, and `doctor` reports multi-line keys as `info` so you can
+see which ones they are:
+
+```
+info  multiline  TLS_KEY holds a multi-line value (16 lines), stored escaped on one line
+```
+
+**Compatibility note.** warden now interprets escape sequences inside
+double-quoted values (`\n`, `\r`, `\t`, `\"`, `\\`), matching what
+`vlucas/phpdotenv` and node's `dotenv` do. Single-quoted values stay literal, as
+POSIX has it. If an existing `.env` has a double-quoted value containing a
+literal `\n` that was meant as two characters, it now reads as a newline —
+`warden doctor` names every multi-line key so you can spot one. Previously
+warden read such a value differently from the application loading the same
+file, which is the bug this fixes.
+
+### When the value is already out
+
+Sometimes a credential has been printed before you got to it — returned by a
+tool, pasted into a terminal, sitting in scrollback. Laundering it through a
+prompt protects nothing it has not already lost.
+
+```sh
+warden set --exposed CF_API_TOKEN abc123
+```
+
+This takes the value on the command line, and is honest about the cost: that
+puts it in shell history and argv, which is durable in a way scrollback is not.
+So warden records the exposure, and `doctor` keeps reporting it:
+
+```
+warn  exposed  CF_API_TOKEN was written from a command line, so its value
+               reached shell history and argv
+      fix      rotate it at the provider, then:
+               warden set --secret CF_API_TOKEN --generate
+```
+
+The record lives in `~/.warden/exposed` and holds key names only — never a
+value. It clears itself as soon as the burned value is gone: rewrite the key
+through a channel that does not expose anything, or `unset` or `clear` it. The
+warning stops when the fix lands rather than nagging forever.
+
+`--exposed` changes how the value got in, not who may read it. The key stays
+secret and `warden get` still refuses it.
+
+Overwriting a key that already holds a value asks first, the same plain
+confirmation `unset` and `clear` use. Provisioning an empty key does not ask —
+there is nothing to lose, and a ceremony that fires when nothing is at stake is
+how people learn to click through the one that matters.
 
 ### Checking a project
 
@@ -325,6 +424,33 @@ Run `warden classify <KEY>` to see which layer or rule fired.
 warden classify MY_PUBLIC_KEY --set public
 warden classify INTERNAL_MODE --set secret
 ```
+
+Making a key public is gated: you retype the key to confirm, because that turns
+a value warden refuses to print into one it will emit. The gate is waived when
+the key holds no value — nothing can be disclosed by classifying an empty key —
+which is what lets a new key be classified and set in one step:
+
+```sh
+warden set --public CF_GROUP_ID abc123
+```
+
+That covers the common case, and only that case: a key that is secret because
+warden fails closed, not because any rule matched it. `warden classify
+CF_GROUP_ID` tells you which applies. Two things send you to `classify --set
+public` and its full ceremony instead:
+
+- **The key already holds a value.** That is the case the retype exists for.
+- **A rule matched the name.** `DB_PASSWORD` is secret because `*PASSWORD*`
+  recognised it, and overriding a rule is a claim that the rule is wrong —
+  worth a deliberate command, not a flag on the one that also supplies the
+  value.
+
+A credential-shaped value is refused outright, and the refusal changes nothing:
+a `set --public` that fails leaves the key classified exactly as it was.
+
+Choosing the secret channel also classifies. `warden set --secret VITE_ANALYTICS_ID`
+records the key as secret, because otherwise the allowlist would win and `warden
+get` would hand back the value you just stored out of sight.
 
 The registry is JSON keyed first by the canonical project root, then by key:
 

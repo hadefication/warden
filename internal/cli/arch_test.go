@@ -90,3 +90,40 @@ func TestRefsPackageCannotReachAValue(t *testing.T) {
 		}
 	}
 }
+
+// TestMCPCannotReachTheEscalatingWritePaths pins a security property that
+// nothing else enforces.
+//
+// SetExposed accepts a value on the caller's terms rather than through a channel
+// warden controls, and Loosen records a key as public without the retype
+// ceremony. Both are safe when a human types the flag and neither is safe as a
+// tool call, so the MCP surface must not reach them — the same rule that keeps
+// `classify --set` off the MCP surface.
+//
+// The SetPublic assertion is a positive control: it proves this test can see a
+// call at all, so a passing run means the absences are real rather than a broken
+// grep quietly reporting nothing.
+func TestMCPCannotReachTheEscalatingWritePaths(t *testing.T) {
+	out, err := exec.Command("grep", "-rn", "--include=*.go", "-e", "SetPublic",
+		"-e", "SetExposed", "-e", "Loosen", "../mcpserver").Output()
+	if err != nil && len(out) == 0 {
+		t.Skip("grep unavailable")
+	}
+	var production string
+	for _, line := range strings.Split(string(out), "\n") {
+		if line != "" && !strings.Contains(line, "_test.go") {
+			production += line + "\n"
+		}
+	}
+
+	if !strings.Contains(production, "SetPublic") {
+		t.Fatal("positive control failed: this test cannot detect a write call, " +
+			"so its other assertions prove nothing")
+	}
+	for _, forbidden := range []string{"SetExposed", "Loosen"} {
+		if strings.Contains(production, forbidden) {
+			t.Errorf("mcpserver reaches %s — that path is for a human at a terminal, "+
+				"not for a tool call:\n%s", forbidden, production)
+		}
+	}
+}

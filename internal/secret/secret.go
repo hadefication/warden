@@ -8,7 +8,10 @@
 // decision about letting a value escape.
 package secret
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Redacted is what a Secret renders as in any output.
 const Redacted = "<redacted>"
@@ -38,3 +41,16 @@ func (s Secret) Expose() string { return string(s) }
 // IsSet reports whether the value is present and non-empty. A declared-but-empty
 // key (KEY=) is not "set" — an empty value is not usable configuration.
 func (s Secret) IsSet() bool { return len(s) > 0 }
+
+// Lines reports how many lines the value spans, and 0 for an empty value.
+//
+// It exists so a caller can ask "is this multi-line?" without calling Expose.
+// A count carries none of the value, so this is safe to reach from a surface
+// package — which is the point: doctor needs to name multi-line keys, and it
+// should not have to hold a secret to do it.
+func (s Secret) Lines() int {
+	if s == "" {
+		return 0
+	}
+	return strings.Count(string(s), "\n") + 1
+}

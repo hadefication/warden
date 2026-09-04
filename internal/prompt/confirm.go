@@ -77,6 +77,10 @@ func actionSentence(action, key string) string {
 		return fmt.Sprintf(
 			"Write the vault's value for %s into this file. Check the path below: a credential "+
 				"that exists nowhere else is about to live somewhere that may be committed.", key)
+	case "expose":
+		return fmt.Sprintf(
+			"Overwrite %s with a value typed on the command line. The value it holds now cannot "+
+				"be recovered, and the new one reaches shell history and argv.", key)
 	default:
 		return fmt.Sprintf("Remove %s. Its value will be gone from this file.", key)
 	}
@@ -96,6 +100,8 @@ func actionCommand(action, key string) string {
 		return "warden vault edit " + key
 	case "push":
 		return "warden vault push " + key
+	case "expose":
+		return "warden set --exposed " + key + " <value>"
 	default:
 		return "warden unset " + key
 	}

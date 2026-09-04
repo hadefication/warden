@@ -9,6 +9,7 @@ package envfile
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -46,6 +47,31 @@ type File struct {
 }
 
 var assignRe = regexp.MustCompile(`^(\s*)(export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$`)
+
+// keyRe is the shape a key must have to be written. It is deliberately the same
+// shape assignRe accepts when reading, so warden cannot write a line it would
+// refuse to parse back.
+var keyRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// ErrInvalidKey means a key could not be written because its name is not a
+// legal environment variable name.
+var ErrInvalidKey = errors.New(
+	"invalid key name: must match [A-Za-z_][A-Za-z0-9_]*")
+
+// ValidateKey rejects a key that cannot be safely rendered into the file.
+//
+// A key is concatenated with "=" and the value to form a line, so a name
+// carrying a newline would not produce one malformed assignment — it would
+// produce two well-formed ones, the second of them entirely attacker-chosen.
+// Because Get resolves a duplicated key to its last assignment, that injected
+// line silently wins over the real one above it. Validating the name is what
+// keeps a key from being a way to write a key.
+func ValidateKey(key string) error {
+	if !keyRe.MatchString(key) {
+		return fmt.Errorf("%q: %w", key, ErrInvalidKey)
+	}
+	return nil
+}
 
 // Parse reads path into a File.
 func Parse(path string, opts Options) (*File, error) {
@@ -103,13 +129,63 @@ func stripInlineComment(s string) string {
 	return t
 }
 
+// unquote strips a matching pair of surrounding quotes and, for double quotes,
+// interprets the escape sequences inside.
+//
+// Single quotes are left literal, which is both POSIX behaviour and what dotenv
+// loaders do: inside them a backslash is just a backslash. Double quotes carry
+// escapes, so this is where \n becomes a newline — the same reading the app's
+// own loader gives the file, which is the point. warden reporting a value the
+// application does not see is a worse failure than either interpretation.
 func unquote(s string) (string, byte) {
 	if len(s) >= 2 {
-		if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
-			return s[1 : len(s)-1], s[0]
+		if s[0] == '"' && s[len(s)-1] == '"' {
+			return unescapeValue(s[1 : len(s)-1]), '"'
+		}
+		if s[0] == '\'' && s[len(s)-1] == '\'' {
+			return s[1 : len(s)-1], '\''
 		}
 	}
 	return s, 0
+}
+
+// unescapeValue interprets the escapes legal inside double quotes.
+//
+// An unrecognised sequence is left exactly as written, backslash included.
+// Swallowing it would silently rewrite a value nobody asked warden to touch,
+// and warden changing a value it was only asked to read is the one outcome
+// worth avoiding more than a missed escape.
+func unescapeValue(s string) string {
+	if !strings.Contains(s, `\`) {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] != '\\' || i+1 >= len(s) {
+			b.WriteByte(s[i])
+			continue
+		}
+		switch s[i+1] {
+		case 'n':
+			b.WriteByte('\n')
+		case 'r':
+			b.WriteByte('\r')
+		case 't':
+			b.WriteByte('\t')
+		case '"':
+			b.WriteByte('"')
+		case '\\':
+			b.WriteByte('\\')
+		default:
+			// Not an escape warden knows: keep the backslash and let the next
+			// iteration write the character after it.
+			b.WriteByte(s[i])
+			continue
+		}
+		i++
+	}
+	return b.String()
 }
 
 // Path returns the file's location.
@@ -139,15 +215,24 @@ func (f *File) Keys() []string {
 }
 
 // Set updates an existing key in place, or appends a new assignment.
-func (f *File) Set(key, value string) {
+// Set writes key = value, adding the assignment if the key is absent.
+//
+// The key is validated here rather than at each call site, so no write path can
+// forget: this is the one funnel every value passes through on its way into the
+// file, which makes it the only place the guarantee is cheap to keep.
+func (f *File) Set(key, value string) error {
+	if err := ValidateKey(key); err != nil {
+		return err
+	}
 	for i := range f.lines {
 		if f.lines[i].key == key {
 			f.lines[i].value = value
 			f.lines[i].modified = true
-			return
+			return nil
 		}
 	}
 	f.lines = append(f.lines, line{key: key, value: value, modified: true})
+	return nil
 }
 
 // Unset removes every assignment of key and reports how many it removed.
@@ -184,7 +269,22 @@ func render(l line) string {
 	return prefix + l.key + "=" + quoteIfNeeded(l.value, l.quote)
 }
 
+// quoteIfNeeded renders a value for the file, choosing a quoting style that can
+// actually carry it.
+//
+// A newline is the case that forces the choice. The parser is line-based, so a
+// real line break would split the assignment and corrupt everything after it —
+// the value is therefore escaped onto a single line, which is the convention
+// dotenv loaders already read. Single quotes cannot carry escapes at all, so a
+// value needing them is promoted to double quotes even when the line it replaces
+// used single ones.
 func quoteIfNeeded(v string, style byte) string {
+	if strings.ContainsAny(v, "\n\r\\\"") {
+		return `"` + escapeValue(v) + `"`
+	}
+	if style == '\'' && strings.Contains(v, "'") {
+		return `"` + escapeValue(v) + `"`
+	}
 	if style != 0 {
 		return string(style) + v + string(style)
 	}
@@ -192,9 +292,33 @@ func quoteIfNeeded(v string, style byte) string {
 		return ""
 	}
 	if strings.ContainsAny(v, " \t#\"'$") {
-		return `"` + strings.ReplaceAll(v, `"`, `\"`) + `"`
+		return `"` + escapeValue(v) + `"`
 	}
 	return v
+}
+
+// escapeValue is the inverse of unescapeValue, and the two must stay that way:
+// before this pair existed, quoteIfNeeded escaped a quote that unquote never
+// unescaped, so any value containing one came back with backslashes it did not
+// go in with.
+func escapeValue(v string) string {
+	var b strings.Builder
+	b.Grow(len(v) + 8)
+	for i := 0; i < len(v); i++ {
+		switch v[i] {
+		case '\\':
+			b.WriteString(`\\`)
+		case '"':
+			b.WriteString(`\"`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		default:
+			b.WriteByte(v[i])
+		}
+	}
+	return b.String()
 }
 
 // Save atomically rewrites the file, preserving its mode. It writes a temp file

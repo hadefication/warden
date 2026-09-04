@@ -42,11 +42,13 @@ type Q struct {
 	projectSchema *classify.Schema
 	global        bool
 	dir           string
+	home          string
+	projectDir    string
 }
 
 // Open resolves the scope and loads the central and legacy project schemas.
 func Open(sc Scope) (*Q, error) {
-	q := &Q{global: sc.Global, dir: sc.Dir}
+	q := &Q{global: sc.Global, dir: sc.Dir, home: sc.Home}
 	var err error
 	if sc.Global {
 		q.st, err = store.OpenSecrets(sc.Home)
@@ -60,6 +62,10 @@ func Open(sc Scope) (*Q, error) {
 	// resolved .env, not by the caller's cwd.
 	if !sc.Global {
 		projectDir := filepath.Dir(q.st.Path())
+		q.projectDir, err = classify.CanonicalProjectRoot(projectDir)
+		if err != nil {
+			return nil, err
+		}
 		q.userSchema, err = classify.LoadUserSchema(sc.Home, projectDir)
 		if err != nil {
 			return nil, err

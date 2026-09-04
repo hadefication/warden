@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/webteractive/warden/internal/classify"
+	"github.com/webteractive/warden/internal/exposure"
 )
 
 // Severity ranks a problem. It exists so a caller can gate on findings without
@@ -71,6 +72,32 @@ func (q *Q) Doctor() []Problem {
 	}
 
 	for _, r := range q.List() {
+		if n := q.lineCount(r.Key); n > 1 {
+			ps = append(ps, Problem{
+				Code:     "multiline",
+				Key:      r.Key,
+				Severity: SeverityInfo,
+				Message: fmt.Sprintf(
+					"%s holds a multi-line value (%d lines), stored escaped on one line",
+					r.Key, n),
+			})
+		}
+	}
+
+	for _, key := range q.exposed() {
+		ps = append(ps, Problem{
+			Code:     "exposed",
+			Key:      key,
+			Severity: SeverityWarn,
+			Message: fmt.Sprintf(
+				"%s was written from a command line, so its value reached shell "+
+					"history and argv", key),
+			Fix: fmt.Sprintf(
+				"rotate it at the provider, then: warden set --secret %s --generate", key),
+		})
+	}
+
+	for _, r := range q.List() {
 		if !r.Set {
 			ps = append(ps, Problem{
 				Code:     "empty",
@@ -117,4 +144,36 @@ func setCommand(key string, class classify.Class) string {
 		return fmt.Sprintf("warden set --secret %s", key)
 	}
 	return fmt.Sprintf("warden set %s <value>", key)
+}
+
+// exposed lists the keys recorded as written through a channel that put their
+// value somewhere durable. A record that cannot be read is not worth keeping, so
+// a broken or unreadable file yields nothing rather than failing doctor — this
+// is a warning surface, not a gate.
+func (q *Q) exposed() []string {
+	scope := q.projectDir
+	if q.global {
+		scope = q.Path()
+	}
+	keys, err := exposure.List(q.home, scope)
+	if err != nil {
+		return nil
+	}
+	return keys
+}
+
+// lineCount reports how many lines a key's value spans, without the value
+// leaving this function.
+//
+// It exists because warden now reads an escaped \n inside double quotes as a
+// real newline, matching the app's own dotenv loader. That changes the meaning
+// of files already on disk, so the affected keys are worth naming — as
+// information, since warden writes such values itself and a finding nobody can
+// clear is one people stop reading.
+func (q *Q) lineCount(key string) int {
+	v, ok := q.st.Get(key)
+	if !ok {
+		return 0
+	}
+	return v.Lines()
 }

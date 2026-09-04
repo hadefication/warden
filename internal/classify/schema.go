@@ -81,7 +81,9 @@ func SetClass(dir, key string, c Class) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	f.Set(key, c.String())
+	if err := f.Set(key, c.String()); err != nil {
+		return "", err
+	}
 	if err := f.Save(); err != nil {
 		return "", err
 	}

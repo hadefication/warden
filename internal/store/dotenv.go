@@ -21,7 +21,9 @@ func (s *fileStore) Get(key string) (secret.Secret, bool) {
 }
 
 func (s *fileStore) Set(key, value string) error {
-	s.f.Set(key, value)
+	if err := s.f.Set(key, value); err != nil {
+		return err
+	}
 	return s.f.Save()
 }
 

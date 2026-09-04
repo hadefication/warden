@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/webteractive/warden/internal/envfile"
 )
 
 const (
@@ -46,6 +48,13 @@ func LoadUserSchema(home, projectDir string) (*Schema, error) {
 // SetUserClass records key's class under projectDir in the central registry.
 // It preserves every other project and key and returns the registry path.
 func SetUserClass(home, projectDir, key string, class Class) (string, error) {
+	// Validated here because this is where a key name becomes durable state.
+	// A name that could never be written to a .env has no business earning a
+	// classification entry, and refusing it here means every caller gets the
+	// check without having to remember it.
+	if err := envfile.ValidateKey(key); err != nil {
+		return "", err
+	}
 	project, err := CanonicalProjectRoot(projectDir)
 	if err != nil {
 		return "", err
